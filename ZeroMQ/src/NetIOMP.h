@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include "config.h"
 
 /**
  * @brief A ZeroMQ-based class for multi-party communication using
@@ -19,7 +20,7 @@ public:
      * @param partyId    The ID of this party (unique integer).
      * @param partyInfo  A mapping from party ID -> (ip, port).
      */
-    NetIOMP(int partyId, const std::map<int, std::pair<std::string, int>>& partyInfo);
+    NetIOMP(PARTY_ID_T partyId, const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo);
 
     /**
      * @brief Initializes the communication sockets.
@@ -32,7 +33,7 @@ public:
      * @param data       Pointer to the binary data to send.
      * @param length     Length of the binary data in bytes.
      */
-    void sendTo(int targetId, const void* data, size_t length);
+    void sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length);
 
     /**
      * @brief Receives binary data from another party.
@@ -41,7 +42,7 @@ public:
      * @param maxLength  Maximum length of the buffer.
      * @return Size of the received data in bytes.
      */
-    size_t receive(int& senderId, void* buffer, size_t maxLength);
+    size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength);
 
     /**
      * @brief Replies with binary data to the last received message.
@@ -68,12 +69,12 @@ public:
     ~NetIOMP();
 
 private:
-    int m_partyId;
-    std::map<int, std::pair<std::string, int>> m_partyInfo;
+    PARTY_ID_T m_partyId;
+    std::map<PARTY_ID_T, std::pair<std::string, int>> m_partyInfo;
 
     zmq::context_t m_context;
     std::unique_ptr<zmq::socket_t> m_repSocket;
-    std::map<int, std::unique_ptr<zmq::socket_t>> m_reqSockets;
+    std::map<PARTY_ID_T, std::unique_ptr<zmq::socket_t>> m_reqSockets;
 };
 
 #endif // NET_IOMP_H

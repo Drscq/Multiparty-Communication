@@ -1,9 +1,11 @@
 #include "NetIOMP.h"
+#include "config.h"
 #include <cstring> // For memcpy
 #include <iostream>
 
 // Constructor
-NetIOMP::NetIOMP(int partyId, const std::map<int, std::pair<std::string, int>>& partyInfo)
+NetIOMP::NetIOMP(PARTY_ID_T partyId,
+                 const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo)
     : m_partyId(partyId), m_partyInfo(partyInfo), m_context(1)
 {
     if (m_partyInfo.find(m_partyId) == m_partyInfo.end()) {
@@ -35,15 +37,15 @@ void NetIOMP::init()
     }
 }
 
-void NetIOMP::sendTo(int targetId, const void* data, size_t length)
+void NetIOMP::sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length)
 {
     if (m_reqSockets.find(targetId) == m_reqSockets.end()) {
         throw std::runtime_error("[NetIOMP] Invalid targetId or socket not initialized.");
     }
 
     // Create multipart message with sender ID and data
-    zmq::message_t idMessage(sizeof(int));
-    std::memcpy(idMessage.data(), &m_partyId, sizeof(int));
+    zmq::message_t idMessage(sizeof(PARTY_ID_T));
+    std::memcpy(idMessage.data(), &m_partyId, sizeof(PARTY_ID_T));
 
     zmq::message_t dataMessage(length);
     std::memcpy(dataMessage.data(), data, length);
@@ -64,7 +66,7 @@ void NetIOMP::sendTo(int targetId, const void* data, size_t length)
 }
 
 
-size_t NetIOMP::receive(int& senderId, void* buffer, size_t maxLength)
+size_t NetIOMP::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength)
 {
     // Receive the multipart message
     zmq::message_t idMessage;
@@ -81,10 +83,10 @@ size_t NetIOMP::receive(int& senderId, void* buffer, size_t maxLength)
     }
 
     // Extract the sender ID
-    if (idMessage.size() != sizeof(int)) {
+    if (idMessage.size() != sizeof(PARTY_ID_T)) {
         throw std::runtime_error("[NetIOMP] Received invalid sender ID size.");
     }
-    std::memcpy(&senderId, idMessage.data(), sizeof(int));
+    std::memcpy(&senderId, idMessage.data(), sizeof(PARTY_ID_T));
 
     // Extract the data
     size_t receivedLength = dataMessage.size();
@@ -137,7 +139,7 @@ bool NetIOMP::pollAndProcess(int timeout)
     zmq::poll(&items[0], 1, std::chrono::milliseconds(timeout));
 
     if (items[0].revents & ZMQ_POLLIN) {
-        int senderId;
+        PARTY_ID_T senderId;
         char buffer[256];
         size_t receivedSize = receive(senderId, buffer, sizeof(buffer));
         buffer[receivedSize] = '\0'; // Null-terminate for printing

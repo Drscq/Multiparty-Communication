@@ -1,4 +1,5 @@
 #include "NetIOMP.h"
+#include "config.h"
 #include <iostream>
 #include <cstring>
 #include <cstdlib> // For std::atoi
@@ -11,13 +12,13 @@ int main(int argc, char* argv[])
     }
 
     // Parse command-line arguments
-    int myPartyId = std::atoi(argv[1]); // Party ID
+    PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[1])); // Party ID
     std::string messageToSend = argv[2]; // Message to send
 
-    // Define party information: ID -> (IP, Port)
-    std::map<int, std::pair<std::string, int>> partyInfo = {
-        {1, {"127.0.0.1", 5555}},
-        {2, {"127.0.0.1", 5556}}
+    // Use PARTY_ID_T for the key type
+    std::map<PARTY_ID_T, std::pair<std::string, int>> partyInfo = {
+        {static_cast<PARTY_ID_T>(1), {"127.0.0.1", 5555}},
+        {static_cast<PARTY_ID_T>(2), {"127.0.0.1", 5556}}
     };
 
     // Initialize NetIOMP
@@ -31,7 +32,7 @@ int main(int argc, char* argv[])
     // Party 1 sends a message to Party 2
     if (myPartyId == 1) {
         std::cout << "Party " << myPartyId << " sending: '" << messageToSend << "' to Party 2" << std::endl;
-        netIOMP.sendTo(2, messageToSend.c_str(), messageToSend.size());
+        netIOMP.sendTo(static_cast<PARTY_ID_T>(2), messageToSend.c_str(), static_cast<LENGTH_T>(messageToSend.size()));
         sentMessage = true;
     }
 
@@ -47,7 +48,7 @@ int main(int argc, char* argv[])
             // if it explicitly needs to send something else.
             if (myPartyId == 2 && !sentMessage) {
                 std::cout << "Party 2 sending: '" << messageToSend << "' to Party 1" << std::endl;
-                netIOMP.sendTo(1, messageToSend.c_str(), messageToSend.size());
+                netIOMP.sendTo(static_cast<PARTY_ID_T>(1), messageToSend.c_str(), static_cast<LENGTH_T>(messageToSend.size()));
                 sentMessage = true;
             }
         }
