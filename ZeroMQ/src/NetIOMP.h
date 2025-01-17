@@ -49,7 +49,7 @@ public:
      * @param data       Pointer to the binary data to send as a reply.
      * @param length     Length of the binary data in bytes.
      */
-    void reply(const void* data, size_t length);
+    void reply(const void* data, LENGTH_T length);
 
     /**
      * @brief Polls for incoming messages and processes them.
@@ -57,6 +57,11 @@ public:
      * @return True if a message was received, false otherwise.
      */
     bool pollAndProcess(int timeout = -1);
+
+    /**
+     * @brief Runs the server loop to constantly receive messages.
+     */
+    void runServer();
 
     /**
      * @brief Closes all sockets.

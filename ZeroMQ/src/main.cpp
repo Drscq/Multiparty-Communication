@@ -3,59 +3,69 @@
 #include <iostream>
 #include <cstring>
 #include <cstdlib> // For std::atoi
+#include <sstream> // For std::istringstream
+#include <thread> // For std::thread
 
 int main(int argc, char* argv[])
 {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <party_id> <message>" << std::endl;
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <party_id>" << std::endl;
         return 1;
     }
 
-    // Parse command-line arguments
-    PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[1])); // Party ID
-    std::string messageToSend = argv[2]; // Message to send
+    PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[1]));
 
-    // Use PARTY_ID_T for the key type
+    // Example usage: three parties on different ports
     std::map<PARTY_ID_T, std::pair<std::string, int>> partyInfo = {
         {static_cast<PARTY_ID_T>(1), {"127.0.0.1", 5555}},
-        {static_cast<PARTY_ID_T>(2), {"127.0.0.1", 5556}}
+        {static_cast<PARTY_ID_T>(2), {"127.0.0.1", 5556}},
+        {static_cast<PARTY_ID_T>(3), {"127.0.0.1", 5557}}
     };
 
-    // Initialize NetIOMP
     NetIOMP netIOMP(myPartyId, partyInfo);
     netIOMP.init();
 
-    // Flags to track when each party is done
-    bool sentMessage = false;
-    bool receivedReply = false;
+    std::cout << "Party " << myPartyId
+              << " initialized. Ready to receive and send messages.\n"
+              << "Type 'send <target> <message>' to send or 'exit' to quit.\n";
 
-    // Party 1 sends a message to Party 2
-    if (myPartyId == 1) {
-        std::cout << "Party " << myPartyId << " sending: '" << messageToSend << "' to Party 2" << std::endl;
-        netIOMP.sendTo(static_cast<PARTY_ID_T>(2), messageToSend.c_str(), static_cast<LENGTH_T>(messageToSend.size()));
-        sentMessage = true;
-    }
+    std::thread serverThread([&netIOMP]() {
+        netIOMP.runServer();
+    });
 
-    // Keep polling for messages until we've sent and received
-    while (!sentMessage || !receivedReply) {
-        // pollAndProcess returns true if a message was received
-        if (netIOMP.pollAndProcess(1000)) {
-            // We've received something. If this is Party 2, we just replied;
-            // if it's Party 1, we just got our reply
-            receivedReply = true;
+    while (true) {
+        // Prompt for user input each iteration
+        std::cout << "> ";
+        std::string command;
+        if (!std::getline(std::cin, command)) {
+            break; // Exit if input stream is lost
+        }
 
-            // Party 2 can also send a message back if needed, or set sentMessage
-            // if it explicitly needs to send something else.
-            if (myPartyId == 2 && !sentMessage) {
-                std::cout << "Party 2 sending: '" << messageToSend << "' to Party 1" << std::endl;
-                netIOMP.sendTo(static_cast<PARTY_ID_T>(1), messageToSend.c_str(), static_cast<LENGTH_T>(messageToSend.size()));
-                sentMessage = true;
+        if (command == "exit") {
+            break;
+        } else if (command.rfind("send ", 0) == 0) {
+            std::istringstream iss(command);
+            std::string sendKeyword;
+            PARTY_ID_T targetId;
+            std::string message;
+
+            iss >> sendKeyword >> targetId;
+            std::getline(iss, message);
+            // Trim leading space
+            if (!message.empty() && message[0] == ' ')
+                message.erase(0, 1);
+
+            if (!message.empty()) {
+                std::cout << "Party " << myPartyId << " sending '"
+                          << message << "' to Party " << targetId << std::endl;
+                netIOMP.sendTo(targetId, message.c_str(),
+                               static_cast<LENGTH_T>(message.size()));
             }
         }
     }
 
-    // Once both sending and receiving are complete, close
     netIOMP.close();
-
+    serverThread.join();
+    std::cout << "Party " << myPartyId << " closed.\n";
     return 0;
 }

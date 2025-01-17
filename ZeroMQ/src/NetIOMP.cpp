@@ -100,7 +100,7 @@ size_t NetIOMP::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength)
 
 
 // Reply with binary data
-void NetIOMP::reply(const void* data, size_t length)
+void NetIOMP::reply(const void* data, LENGTH_T length)
 {
     zmq::message_t reply(length);
     std::memcpy(reply.data(), data, length);
@@ -155,4 +155,21 @@ bool NetIOMP::pollAndProcess(int timeout)
     }
 
     return false; // No message arrived this poll cycle
+}
+
+void NetIOMP::runServer()
+{
+    while (true) {
+        PARTY_ID_T senderId;
+        char buffer[256];
+        LENGTH_T receivedSize = receive(senderId, buffer, sizeof(buffer));
+        buffer[receivedSize] = '\0'; // Null-terminate for printing
+
+        std::cout << "Party " << m_partyId << " received: '" << buffer << "' from Party " << senderId << std::endl;
+
+        // Reply to the sender
+        std::string reply = "Hello back from Party " + std::to_string(m_partyId);
+        std::cout << "Party " << m_partyId << " replying: '" << reply << "' to Party " << senderId << std::endl;
+        this->reply(reply.c_str(), static_cast<LENGTH_T>(reply.size()));
+    }
 }
