@@ -52,18 +52,6 @@ public:
     void reply(const void* data, LENGTH_T length);
 
     /**
-     * @brief Polls for incoming messages and processes them.
-     * @param timeout   Timeout in milliseconds for polling.
-     * @return True if a message was received, false otherwise.
-     */
-    bool pollAndProcess(int timeout = -1);
-
-    /**
-     * @brief Runs the server loop to constantly receive messages.
-     */
-    void runServer();
-
-    /**
      * @brief Closes all sockets.
      */
     void close();

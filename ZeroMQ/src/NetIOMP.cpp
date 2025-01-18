@@ -2,6 +2,7 @@
 #include "config.h"
 #include <cstring> // For memcpy
 #include <iostream>
+#include <thread> // For std::this_thread::sleep_for
 
 // Constructor
 NetIOMP::NetIOMP(PARTY_ID_T partyId,
@@ -18,8 +19,15 @@ void NetIOMP::init()
 {
     // Setup the REP (server) socket
     m_repSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_REP);
+    
+    // Set socket options
+    int linger = 0;
+    m_repSocket->set(zmq::sockopt::linger, linger);
+    
     auto [myIp, myPort] = m_partyInfo.at(m_partyId);
     std::string bindEndpoint = "tcp://" + myIp + ":" + std::to_string(myPort);
+    
+    std::cout << "Party " << m_partyId << " binding to " << bindEndpoint << "\n";
     m_repSocket->bind(bindEndpoint);
 
     // Setup REQ (client) sockets for all other parties
@@ -31,6 +39,7 @@ void NetIOMP::init()
         std::string connectEndpoint = "tcp://" + ip + ":" + std::to_string(port);
 
         auto reqSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_REQ);
+        reqSocket->set(zmq::sockopt::linger, linger);
         reqSocket->connect(connectEndpoint);
 
         m_reqSockets[pid] = std::move(reqSocket);
@@ -50,21 +59,36 @@ void NetIOMP::sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length)
     zmq::message_t dataMessage(length);
     std::memcpy(dataMessage.data(), data, length);
 
-    // Send both parts
-    m_reqSockets[targetId]->send(idMessage, zmq::send_flags::sndmore);
-    m_reqSockets[targetId]->send(dataMessage, zmq::send_flags::none);
+    // Retry mechanism
+    const int maxRetries = 5;
+    int retries = 0;
+    while (retries < maxRetries) {
+        try {
+            // Send both parts
+            m_reqSockets[targetId]->send(idMessage, zmq::send_flags::sndmore);
+            m_reqSockets[targetId]->send(dataMessage, zmq::send_flags::none);
 
-    // Wait for a reply (REQ/REP requires a round-trip)
-    zmq::message_t reply;
-    auto result = m_reqSockets[targetId]->recv(reply, zmq::recv_flags::none);
+            // Wait for a reply (REQ/REP requires a round-trip)
+            zmq::message_t reply;
+            auto result = m_reqSockets[targetId]->recv(reply, zmq::recv_flags::none);
 
-    if (!result) {
-        throw std::runtime_error("[NetIOMP] Failed to receive reply from target.");
+            if (!result) {
+                throw std::runtime_error("[NetIOMP] Failed to receive reply from target.");
+            }
+
+            // Optionally handle the reply (e.g., log it, process it).
+            break; // Exit the retry loop if successful
+        } catch (const zmq::error_t& e) {
+            std::cerr << "[NetIOMP] Error sending to target " << targetId << ": " << e.what() << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait before retrying
+            retries++;
+        }
     }
 
-    // Optionally handle the reply (e.g., log it, process it).
+    if (retries == maxRetries) {
+        throw std::runtime_error("[NetIOMP] Max retries reached. Failed to send message.");
+    }
 }
-
 
 size_t NetIOMP::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength)
 {
@@ -111,17 +135,24 @@ void NetIOMP::reply(const void* data, LENGTH_T length)
 // Close all sockets
 void NetIOMP::close()
 {
+    // Set linger to 0 to prevent hanging on close
+    int linger = 0;
+    
     if (m_repSocket) {
+        m_repSocket->set(zmq::sockopt::linger, linger);
         m_repSocket->close();
         m_repSocket.reset();
     }
 
     for (auto& [pid, sockPtr] : m_reqSockets) {
         if (sockPtr) {
+            sockPtr->set(zmq::sockopt::linger, linger);
             sockPtr->close();
             sockPtr.reset();
         }
     }
+    
+    m_context.close();
 }
 
 // Destructor
@@ -130,46 +161,4 @@ NetIOMP::~NetIOMP()
     close();
 }
 
-bool NetIOMP::pollAndProcess(int timeout)
-{
-    zmq::pollitem_t items[] = {
-        { static_cast<void*>(m_repSocket->handle()), 0, ZMQ_POLLIN, 0 }
-    };
-
-    zmq::poll(&items[0], 1, std::chrono::milliseconds(timeout));
-
-    if (items[0].revents & ZMQ_POLLIN) {
-        PARTY_ID_T senderId;
-        char buffer[256];
-        size_t receivedSize = receive(senderId, buffer, sizeof(buffer));
-        buffer[receivedSize] = '\0'; // Null-terminate for printing
-
-        std::cout << "Party " << m_partyId << " received: '" << buffer << "' from Party " << senderId << std::endl;
-
-        // Reply to the sender
-        std::string reply = "Hello back from Party " + std::to_string(m_partyId);
-        std::cout << "Party " << m_partyId << " replying: '" << reply << "' to Party " << senderId << std::endl;
-        this->reply(reply.c_str(), reply.size());
-
-        return true; // A message was received and processed
-    }
-
-    return false; // No message arrived this poll cycle
-}
-
-void NetIOMP::runServer()
-{
-    while (true) {
-        PARTY_ID_T senderId;
-        char buffer[256];
-        LENGTH_T receivedSize = receive(senderId, buffer, sizeof(buffer));
-        buffer[receivedSize] = '\0'; // Null-terminate for printing
-
-        std::cout << "Party " << m_partyId << " received: '" << buffer << "' from Party " << senderId << std::endl;
-
-        // Reply to the sender
-        std::string reply = "Hello back from Party " + std::to_string(m_partyId);
-        std::cout << "Party " << m_partyId << " replying: '" << reply << "' to Party " << senderId << std::endl;
-        this->reply(reply.c_str(), static_cast<LENGTH_T>(reply.size()));
-    }
-}
+// Remove pollAndProcess and runServer methods as they're no longer needed
