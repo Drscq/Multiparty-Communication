@@ -11,7 +11,7 @@ LDFLAGS = -lzmq -lpthread
 TARGET = netiomp_test  # Change this to your desired output name
 
 # Source files
-SRCS = src/main.cpp src/NetIOMP.cpp
+SRCS = src/main.cpp src/NetIOMPReqRep.cpp src/NetIOMPDealerRouter.cpp src/NetIOMPFactory.cpp
 
 # Object files
 OBJS = $(SRCS:.cpp=.o)

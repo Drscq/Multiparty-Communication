@@ -1,2 +1,6 @@
 src/test/build/
 ZeroMQ/my_program
+ZeroMQ/netiomp_test
+ZeroMQ/netiomp_test
+*.o
+ZeroMQ/src/main.o
