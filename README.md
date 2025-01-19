@@ -1,91 +1,128 @@
-# Multiparty Communication with ZeroMQ
+# Multiparty Communication Framework
 
-This project demonstrates a multi-party communication system using ZeroMQ with a Request-Reply (REQ/REP) pattern. The system supports binary data transmission and identifies the sender's party ID.
+This project implements a flexible multiparty communication framework using ZeroMQ, supporting both synchronous (REQ/REP) and asynchronous (DEALER/ROUTER) communication patterns for secure multiparty computation (MPC).
+
+## Features
+
+- Support for arbitrary number of parties (n ≥ 2)
+- Two communication patterns:
+  - REQ/REP: Synchronous request-reply pattern
+  - DEALER/ROUTER: Asynchronous messaging pattern with concurrent message handling
+- Dynamic port allocation
+- Automatic party discovery
+- Built-in error handling and retry mechanisms
+- Message acknowledgment system
 
 ## Prerequisites
 
-- C++17 compatible compiler (e.g., g++)
-- ZeroMQ library
-- CMake (optional, if you prefer using CMake for building)
+```bash
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y g++ make libzmq3-dev
+
+# macOS
+brew install zeromq
+```
 
 ## Project Structure
 
 ```
 Multiparty-Communication/
-├── .gitignore
-├── README.md
 ├── ZeroMQ/
-│   ├── Makefile
 │   ├── src/
-│   │   ├── config.h
-│   │   ├── main.cpp
-│   │   ├── NetIOMP.cpp
-│   │   └── NetIOMP.h
+│   │   ├── INetIOMP.h              # Interface definition
+│   │   ├── NetIOMPDealerRouter.h   # DEALER/ROUTER implementation
+│   │   ├── NetIOMPDealerRouter.cpp
+│   │   ├── NetIOMPReqRep.h         # REQ/REP implementation
+│   │   ├── NetIOMPReqRep.cpp
+│   │   ├── NetIOMPFactory.h        # Factory pattern implementation
+│   │   ├── NetIOMPFactory.cpp
+│   │   ├── config.h                # Configuration constants
+│   │   └── main.cpp                # Example implementation
+│   ├── Makefile
+│   └── run_parties.sh              # Automated test script
 ```
 
-## Building the Project
+## Building
 
-### Using Makefile
-
-1. Navigate to the `ZeroMQ` directory:
-    ```sh
-    cd ZeroMQ
-    ```
-
-2. Build the project using `make`:
-    ```sh
-    make
-    ```
-
-3. The executable will be generated with the name specified in the `Makefile` (e.g., `netiomp_test`).
-
-### Using g++
-
-Alternatively, you can compile the project directly using `g++`:
-
-```sh
-g++ -std=c++17 -o netiomp_test src/main.cpp src/NetIOMP.cpp -lzmq -lpthread
+```bash
+cd ZeroMQ
+make clean && make
 ```
 
-## Running the Program
+## Running the Example
 
-1. Run the program with a party ID as an argument:
-    ```sh
-    ./netiomp_test <party_id>
-    ```
+Two ways to run the example:
 
-    For example:
-    ```sh
-    ./netiomp_test 1
-    ```
+1. Using the automated script:
+```bash
+# Run with default 3 parties
+./run_parties.sh dealerrouter
 
-2. The program will initialize and be ready to receive and send messages. You can type commands to interact with other parties:
-    - `send <target_id> <message>`: Send a message to the specified target party ID.
-    - `exit`: Quit the program.
-
-## Example Usage
-
-1. Open three terminal windows and run the program with different party IDs:
-    ```sh
-    ./netiomp_test 1
-    ./netiomp_test 2
-    ./netiomp_test 3
-    ```
-
-2. In each terminal, you can send messages to other parties. For example, in the terminal for party 1:
-    ```sh
-    send 2 Hello Party 2
-    ```
-
-3. Party 2 will receive the message and reply back.
-
-## Cleaning Up
-
-To clean up the build files, run:
-```sh
-make clean
+# Run with custom number of parties (e.g., 5)
+./run_parties.sh dealerrouter 5
 ```
+
+2. Manual execution:
+```bash
+# Format: ./netiomp_test <mode> <party_id> <num_parties> <input_value>
+# Terminal 1:
+./netiomp_test dealerrouter 1 3 10
+
+# Terminal 2:
+./netiomp_test dealerrouter 2 3 20
+
+# Terminal 3:
+./netiomp_test dealerrouter 3 3 30
+```
+
+## Example Operation
+
+1. Each party initializes with:
+   - Unique party ID
+   - Total number of parties
+   - Input value
+   - Communication mode (REQ/REP or DEALER/ROUTER)
+
+2. Operation flow:
+   - Party 1 acts as the central coordinator
+   - Other parties send their input values to Party 1
+   - Party 1 computes the sum of all inputs
+   - Party 1 broadcasts the result to all other parties
+
+3. Communication patterns:
+   - REQ/REP: Synchronous, with forced acknowledgments
+   - DEALER/ROUTER: Asynchronous, supports concurrent messages
+
+## Implementation Details
+
+- Uses ZeroMQ's DEALER/ROUTER pattern for asynchronous communication
+- Dynamic port allocation starting from base port 5555
+- Automatic retry mechanism for failed connections
+- Efficient message routing using party IDs
+- Thread-safe message handling
+- Proper cleanup of resources
+
+## Error Handling
+
+The framework includes comprehensive error handling for:
+- Connection failures
+- Message transmission errors
+- Invalid party IDs
+- Port conflicts
+- Resource cleanup
+
+## Limitations
+
+- Currently supports localhost testing only
+- Party 1 must be started first
+- Basic arithmetic operation (sum) for demonstration
+- Maximum message size limited by available memory
+
+## Contributing
+
+Feel free to submit issues and enhancement requests!
 
 ## License
 
-This project is licensed under the MIT License.# Multiparty-Communication
+MIT License
