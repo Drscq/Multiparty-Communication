@@ -10,22 +10,23 @@
 
 int main(int argc, char* argv[])
 {
-    if (argc < 4) {
-        std::cerr << "Usage: " << argv[0] << " <mode> <party_id> <input_value>" << std::endl;
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " <mode> <party_id> <num_parties> <input_value>" << std::endl;
         std::cerr << "Modes: reqrep, dealerrouter" << std::endl;
         return 1;
     }
 
     std::string modeStr = argv[1];
     PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[2]));
-    int inputValue = std::atoi(argv[3]);
+    int totalParties = std::atoi(argv[3]);
+    int inputValue = std::atoi(argv[4]);
 
-    // Example usage: three parties on different ports
-    std::map<PARTY_ID_T, std::pair<std::string, int>> partyInfo = {
-        {static_cast<PARTY_ID_T>(1), {"127.0.0.1", 5555}},
-        {static_cast<PARTY_ID_T>(2), {"127.0.0.1", 5556}},
-        {static_cast<PARTY_ID_T>(3), {"127.0.0.1", 5557}}
-    };
+    // Build the party info map dynamically
+    std::map<PARTY_ID_T, std::pair<std::string, int>> partyInfo;
+    int basePort = 5555;
+    for (int i = 1; i <= totalParties; ++i) {
+        partyInfo[static_cast<PARTY_ID_T>(i)] = {"127.0.0.1", basePort + i - 1};
+    }
 
     // Determine the mode
     NetIOMPFactory::Mode mode;
@@ -83,44 +84,37 @@ int main(int argc, char* argv[])
                 int sum = inputValue; // Party 1's own input
                 std::map<PARTY_ID_T, int> inputs;  // Store received inputs keyed by party ID
 
-                // Collect input from Party 2 and Party 3 in any order
-                while (inputs.size() < 2) {
+                // Collect input from all other parties
+                while (inputs.size() < static_cast<size_t>(totalParties - 1)) {
                     PARTY_ID_T senderId;
                     int receivedValue;
                     netIOMP->receive(senderId, &receivedValue, sizeof(receivedValue));
 
-                    if (senderId == 2 || senderId == 3) {
-                        // Only process if we haven’t already received from this party
-                        if (inputs.find(senderId) == inputs.end()) {
-                            inputs[senderId] = receivedValue;
-                            sum += receivedValue;
-                            std::cout << "Party 1 received input value " << receivedValue 
-                                      << " from Party " << senderId << "\n";
-                        } else {
-                            std::cout << "Party 1 received a duplicate input from Party " 
-                                      << senderId << ", ignoring.\n";
-                        }
-                        // Send acknowledgment reply
-                        std::string ack = "ACK from Party 1";
-                        netIOMP->reply(ack.c_str(), static_cast<LENGTH_T>(ack.size()));
+                    if (senderId != 1 && inputs.find(senderId) == inputs.end()) {
+                        inputs[senderId] = receivedValue;
+                        sum += receivedValue;
+                        std::cout << "Party 1 received input value " << receivedValue 
+                                  << " from Party " << senderId << "\n";
                     } else {
-                        // Out-of-order or unknown sender
-                        std::cerr << "Party 1 received input from unexpected or unknown Party "
-                                  << senderId << ", discarding.\n";
-                        std::string ack = "ACK (out-of-order)";
-                        netIOMP->reply(ack.c_str(), static_cast<LENGTH_T>(ack.size()));
+                        std::cout << "Party 1 received a duplicate or invalid input from Party " 
+                                  << senderId << ", ignoring.\n";
                     }
+                    // Send acknowledgment reply
+                    std::string ack = "ACK from Party 1";
+                    netIOMP->reply(ack.c_str(), static_cast<LENGTH_T>(ack.size()));
                 }
 
-                // Now we have inputs from both Party 2 and Party 3
+                // Now we have inputs from all other parties
                 std::cout << "Party 1 computed sum: " << sum << std::endl;
 
-                // Broadcast the result to Party 2 and Party 3
-                for (int i = 2; i <= 3; ++i) {
-                    std::cout << "Party " << myPartyId << " sending result to Party " << i << "\n";
-                    netIOMP->sendTo(i, &sum, sizeof(sum));
-                    std::cout << "Party " << myPartyId << " sent result to Party " << i << "\n";
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                // Broadcast the result to all other parties
+                for (int i = 1; i <= totalParties; ++i) {
+                    if (i != 1) {
+                        std::cout << "Party " << myPartyId << " sending result to Party " << i << "\n";
+                        netIOMP->sendTo(i, &sum, sizeof(sum));
+                        std::cout << "Party " << myPartyId << " sent result to Party " << i << "\n";
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    }
                 }
             } else {
                 // Other parties receive the result
@@ -140,10 +134,10 @@ int main(int argc, char* argv[])
 
             // Send input value to Party 1 with retry mechanism
             if (myPartyId != 1) {
-                // If we're Party 3, delay slightly so Party 2's message arrives first
-                if (myPartyId == 3) {
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                }
+                // // If we're Party 3, delay slightly so Party 2's message arrives first
+                // if (myPartyId == 3) {
+                //     std::this_thread::sleep_for(std::chrono::seconds(1));
+                // }
 
                 std::cout << "Party " << myPartyId << " sending input value to Party 1\n";
                 const int maxRetries = 5;
@@ -168,44 +162,38 @@ int main(int argc, char* argv[])
                 int sum = inputValue; // Party 1's own input
                 std::map<PARTY_ID_T, int> inputs;  // Store received inputs keyed by party ID
 
-                // Collect input from Party 2 and Party 3 in any order
-                while (inputs.size() < 2) {
+                // Collect input from all other parties
+                while (inputs.size() < static_cast<size_t>(totalParties - 1)) {
                     PARTY_ID_T senderId;
                     int receivedValue;
                     netIOMP->receive(senderId, &receivedValue, sizeof(receivedValue));
 
-                    if (senderId == 2 || senderId == 3) {
-                        // Only process if we haven’t already received from this party
-                        if (inputs.find(senderId) == inputs.end()) {
-                            inputs[senderId] = receivedValue;
-                            sum += receivedValue;
-                            std::cout << "Party 1 received input value " << receivedValue 
-                                      << " from Party " << senderId << "\n";
-                        } else {
-                            std::cout << "Party 1 received a duplicate input from Party " 
-                                      << senderId << ", ignoring.\n";
-                        }
-
-                        // Send a short acknowledgment reply so the dealer can unblock
-                        std::string ack = "ACK from Party 1";
-                        netIOMP->reply(ack.c_str(), static_cast<LENGTH_T>(ack.size()));
+                    if (senderId != 1 && inputs.find(senderId) == inputs.end()) {
+                        inputs[senderId] = receivedValue;
+                        sum += receivedValue;
+                        std::cout << "Party 1 received input value " << receivedValue 
+                                  << " from Party " << senderId << "\n";
                     } else {
-                        std::cerr << "Party 1 received input from unexpected Party "
-                                  << senderId << ", discarding.\n";
-                        std::string ack = "ACK (out-of-order)";
-                        netIOMP->reply(ack.c_str(), static_cast<LENGTH_T>(ack.size()));
+                        std::cout << "Party 1 received a duplicate or invalid input from Party " 
+                                  << senderId << ", ignoring.\n";
                     }
+
+                    // Send a short acknowledgment reply so the dealer can unblock
+                    std::string ack = "ACK from Party 1";
+                    netIOMP->reply(ack.c_str(), static_cast<LENGTH_T>(ack.size()));
                 }
 
-                // Now we have inputs from both Party 2 and Party 3
+                // Now we have inputs from all other parties
                 std::cout << "Party 1 computed sum: " << sum << std::endl;
 
-                // Broadcast the result to Party 2 and Party 3
-                for (int i = 2; i <= 3; ++i) {
-                    std::cout << "Party " << myPartyId << " sending result to Party " << i << "\n";
-                    netIOMP->sendTo(i, &sum, sizeof(sum));
-                    std::cout << "Party " << myPartyId << " sent result to Party " << i << "\n";
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                // Broadcast the result to all other parties
+                for (int i = 1; i <= totalParties; ++i) {
+                    if (i != 1) {
+                        std::cout << "Party " << myPartyId << " sending result to Party " << i << "\n";
+                        netIOMP->sendTo(i, &sum, sizeof(sum));
+                        std::cout << "Party " << myPartyId << " sent result to Party " << i << "\n";
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    }
                 }
             } else {
                 // Other parties receive the result

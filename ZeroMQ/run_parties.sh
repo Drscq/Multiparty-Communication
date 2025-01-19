@@ -2,50 +2,48 @@
 
 # Usage function
 usage() {
-    echo "Usage: $0 <mode>"
+    echo "Usage: $0 <mode> [num_parties]"
     echo "Modes: reqrep, dealerrouter"
+    echo "Default number of parties: 3"
     exit 1
 }
 
 # Check if mode is provided
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
     usage
 fi
 
 MODE=$1
+NUM_PARTIES=${2:-3}  # Default to 3 parties if not specified
 
 if [ "$MODE" != "reqrep" ] && [ "$MODE" != "dealerrouter" ]; then
     echo "Invalid mode: $MODE"
     usage
 fi
 
-echo "Running parties in mode: $MODE"
+echo "Running $NUM_PARTIES parties in mode: $MODE"
 
-# Cleanup any existing processes with specific party IDs
-pkill -f "$1 1"
-pkill -f "$1 2"
-pkill -f "$1 3"
-sleep 5  # Increased delay to ensure ports are freed
+# Cleanup any existing processes
+for ((i=1; i<=$NUM_PARTIES; i++)); do
+    pkill -f "$MODE $i"
+done
+sleep 2
 
-# Define the ports to clean
-PORTS=(5555 5556 5557)
+# Clean ports
+PORTS=()
+for ((i=0; i<$NUM_PARTIES; i++)); do
+    PORTS+=($((5555 + i)))
+done
 
 # Function to clean ports
 clean_ports() {
     for port in "${PORTS[@]}"
     do
-        # Retrieve all PIDs using the current port
         PIDS=$(lsof -t -i :"$port")
-        
         if [ ! -z "$PIDS" ]; then
             for PID in $PIDS; do
-                echo "Port $port is in use by PID $PID. Terminating the process."
+                echo "Port $port is in use by PID $PID. Terminating..."
                 kill -9 "$PID" 2>/dev/null
-                if [ $? -eq 0 ]; then
-                    echo "Successfully terminated process $PID on port $port."
-                else
-                    echo "Failed to terminate process $PID on port $port."
-                fi
             done
         else
             echo "Port $port is free."
@@ -53,25 +51,21 @@ clean_ports() {
     done
 }
 
-# Clean the ports before starting the parties
-echo "Cleaning specified ports to ensure they are free."
+# Clean the ports
+echo "Cleaning specified ports..."
 clean_ports
 
-# Start Party 1
-./netiomp_test $MODE 1 10 &
-PID1=$!
-sleep 1
-
-# Start Party 2
-./netiomp_test $MODE 2 20 &
-PID2=$!
-sleep 1
-
-# Start Party 3
-./netiomp_test $MODE 3 30 &
-PID3=$!
+# Start all parties
+PIDS=()
+for ((i=1; i<=$NUM_PARTIES; i++)); do
+    # Each party starts with input value = party_id * 10
+    INPUT_VALUE=$((i * 10))
+    ./netiomp_test $MODE $i $NUM_PARTIES $INPUT_VALUE &
+    PIDS+=($!)
+    sleep 1
+done
 
 # Wait for all parties to finish
-wait $PID1
-wait $PID2
-wait $PID3
+for pid in "${PIDS[@]}"; do
+    wait $pid
+done
