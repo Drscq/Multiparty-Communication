@@ -24,10 +24,11 @@ fi
 echo "Running $NUM_PARTIES parties in mode: $MODE"
 
 # Cleanup any existing processes
-for ((i=1; i<=$NUM_PARTIES; i++)); do
-    pkill -f "$MODE $i"
-done
-sleep 2
+# Comment out or remove this section if it’s terminating new processes:
+# for ((i=1; i<=$NUM_PARTIES; i++)); do
+#     pkill -f "$MODE $i"
+# done
+# sleep 2
 
 # Clean ports
 PORTS=()
