@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include "AdditiveSecretSharing.h" // incorporate big-int sharing
 
 /**
  * @brief Represents an individual party in the MPC protocol.
@@ -56,6 +57,30 @@ public:
                   << "] Computed total sum: " << sum << "\n";
         return sum;
     }
+
+    void broadcastShares(const std::vector<ShareType> &shares);
+    void receiveShares(std::vector<ShareType> &received, int expectedCount);
+    void secureMultiplyShares(ShareType myShareX, ShareType myShareY,
+                              const BeaverTriple &myTripleShare, ShareType &productOut);
+
+    // Each party’s secret shares for that party’s secret
+    std::vector<ShareType> myShares;
+
+    // allShares[pid] holds that party's share for my secret
+    // or more generally, allShares[pid][thisParty], if you store a 2D structure
+    std::vector<std::vector<ShareType>> allShares;
+
+    // Each party generates shares for its own secret and sends them out
+    void distributeOwnShares();
+
+    // Each party receives shares from all other parties
+    void gatherAllShares();
+
+    // Reconstruct all secrets from the shares and compute global sum
+    void computeGlobalSumOfSecrets();
+
+    // A placeholder for multi-party multiplication with beaver
+    void doMultiplicationDemo();
 
 private:
     PARTY_ID_T m_partyId;

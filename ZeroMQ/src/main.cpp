@@ -53,22 +53,21 @@ int main(int argc, char* argv[])
         Party myParty(myPartyId, totalParties, inputValue, netIOMP.get()); // Use .get() to pass raw pointer
         myParty.init();
 
-        // Wait for a short period to ensure the server is ready
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        // 1) Distribute shares for local secret
+        myParty.distributeOwnShares();
 
-        // Every party broadcasts its local value
-        myParty.broadcastValue();
-        std::cout << "[Party " << myPartyId << "] Broadcasted local value.\n";
+        // 2) Wait or sync to ensure all parties have distributed
+        // std::this_thread::sleep_for(std::chrono::seconds(2));
 
-        // Optionally wait a little to ensure sends have gone out
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+        // 3) Gather shares from all parties
+        myParty.gatherAllShares();
 
-        // Every party receives values from all other parties and computes the sum
-        int sum = myParty.receiveAllValuesAndComputeSum();
-        std::cout << "[Party " << myPartyId << "] Final sum of all inputs: " << sum << "\n";
+        // 4) Reconstruct global sum
+        myParty.computeGlobalSumOfSecrets();
 
-        // Add small delay before closing to ensure messages are processed
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        // 5) (Optional) Show a multiplication example placeholder
+        myParty.doMultiplicationDemo();
+
         netIOMP->close();
         std::cout << "Party " << myPartyId << " closed.\n";
     }

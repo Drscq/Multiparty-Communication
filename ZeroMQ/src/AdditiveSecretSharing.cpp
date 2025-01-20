@@ -41,77 +41,74 @@ ShareType AdditiveSecretSharing::cloneBigInt(ShareType source) {
     return bn;
 }
 
-std::vector<ShareType> AdditiveSecretSharing::generateShares(ShareType secret, int numParties) {
-    std::vector<ShareType> shares(numParties);
-    for (auto &s : shares) {
-        s = newBigInt();
+void AdditiveSecretSharing::generateShares(ShareType secret, int numParties, std::vector<ShareType>& sharesOut) {
+    sharesOut.resize(numParties);
+
+    BIGNUM* sumSoFar = newBigInt(); // = 0
+    for(int i = 0; i < numParties; i++) {
+        sharesOut[i] = newBigInt();
     }
 
-    // sumSoFar = 0
-    BIGNUM* sumSoFar = newBigInt();
-
-    // For numParties-1 shares, pick random in [0..prime-1]
     for(int i = 0; i < numParties - 1; i++) {
-        BN_rand_range(shares[i], getPrime()); // shares[i] in [0..prime-1]
-        // sumSoFar = sumSoFar + shares[i] mod prime
-        BN_mod_add(sumSoFar, sumSoFar, shares[i], getPrime(), getCtx());
+        BN_rand_range(sharesOut[i], getPrime()); 
+        BN_mod_add(sumSoFar, sumSoFar, sharesOut[i], getPrime(), getCtx());
     }
 
-    // final share = (secret - sumSoFar) mod prime
-    BIGNUM* tmp = newBigInt(); // for intermediate
+    BIGNUM* tmp = newBigInt();
     BN_mod_sub(tmp, secret, sumSoFar, getPrime(), getCtx());
-    BN_copy(shares[numParties - 1], tmp);
+    BN_copy(sharesOut[numParties - 1], tmp);
 
     BN_free(tmp);
     BN_free(sumSoFar);
-    return shares;
 }
 
-ShareType AdditiveSecretSharing::reconstructSecret(const std::vector<ShareType>& shares) {
-    // total = 0
+void AdditiveSecretSharing::reconstructSecret(const std::vector<ShareType>& shares, ShareType &result) {
     BIGNUM* total = newBigInt();
     for (auto s : shares) {
-        // total = total + s mod prime
         BN_mod_add(total, total, s, getPrime(), getCtx());
     }
-    return total; // caller must BN_free() when done
+    // Copy final value into caller-provided space
+    BN_copy(result, total);
+    BN_free(total);
 }
 
-ShareType AdditiveSecretSharing::addShares(ShareType x, ShareType y) {
-    BIGNUM* result = newBigInt();
+// Remove or comment out any leftover function:
+// ShareType AdditiveSecretSharing::addShares(ShareType x, ShareType y) { ... }
+
+// Keep the void-based addShares below:
+void AdditiveSecretSharing::addShares(ShareType x, ShareType y, ShareType &result) {
     BN_mod_add(result, x, y, getPrime(), getCtx());
-    return result; // caller frees
 }
 
-ShareType AdditiveSecretSharing::multiplyShares(ShareType x, ShareType y, const BeaverTriple &triple) {
-    // This is just a placeholder to illustrate how it might work with Beaver.
-    // Real usage would need each party to hold partial quadruple-shares plus communication.
+void AdditiveSecretSharing::addShares(const std::vector<ShareType>& inputShares, ShareType &result) {
+    BN_zero(result);
+    for (auto s : inputShares) {
+        BN_mod_add(result, result, s, getPrime(), getCtx());
+    }
+}
 
-    // Create BNs for d = (x-a), e = (y-b)
+// Remove or comment out any leftover function:
+// ShareType AdditiveSecretSharing::multiplyShares(ShareType x, ShareType y, const BeaverTriple &triple) { ... }
+
+// Keep the void-based multiplyShares below:
+void AdditiveSecretSharing::multiplyShares(ShareType x, ShareType y,
+                                           const BeaverTriple &triple, ShareType &product)
+{
+    // ...existing code...
     BIGNUM* d = newBigInt();
     BIGNUM* e = newBigInt();
     BN_mod_sub(d, x, triple.a, getPrime(), getCtx());
     BN_mod_sub(e, y, triple.b, getPrime(), getCtx());
 
-    // part = c + a*e + b*d + d*e
-    BIGNUM* part = cloneBigInt(triple.c);
+    BN_copy(product, triple.c);
     BIGNUM* tmp = newBigInt();
 
-    // a*e
+    // ...existing code...
     BN_mod_mul(tmp, triple.a, e, getPrime(), getCtx());
-    BN_mod_add(part, part, tmp, getPrime(), getCtx());
+    BN_mod_add(product, product, tmp, getPrime(), getCtx());
 
-    // b*d
-    BN_mod_mul(tmp, triple.b, d, getPrime(), getCtx());
-    BN_mod_add(part, part, tmp, getPrime(), getCtx());
-
-    // d*e
-    BN_mod_mul(tmp, d, e, getPrime(), getCtx());
-    BN_mod_add(part, part, tmp, getPrime(), getCtx());
-
+    // ...existing code...
     BN_free(tmp);
     BN_free(d);
     BN_free(e);
-
-    return part; // caller frees
 }
