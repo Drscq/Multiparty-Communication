@@ -1,49 +1,89 @@
-
 #pragma once
 #include <vector>
 #include <random>
 #include <cstdint>
+#include "config.h"
+#include <openssl/bn.h>
 
 /**
- * @brief Provides basic additive secret sharing functionality for integer secrets.
+ * @brief Type used for secret shares with big integers.
+ */
+using ShareType = BIGNUM*;
+
+/**
+ * @brief Struct or class to represent a Beaver Triple (a, b, c).
+ *        For brevity, not all details are shown.
+ */
+struct BeaverTriple {
+    ShareType a;
+    ShareType b;
+    ShareType c;
+};
+
+/**
+ * @brief Provides additive secret sharing functionality over a finite field.
  */
 class AdditiveSecretSharing {
 public:
     /**
-     * @brief Generates n additive shares of a secret integer.
-     *        sum(shares) = secret (in normal integer arithmetic).
-     * @param secret The original secret value.
+     * @brief Generates n additive shares of 'secret', mod PRIME_MODULUS.
+     * @param secret The original secret value in [0..PRIME_MODULUS-1].
      * @param numParties Number of shares/parties.
      * @return Vector of shares (size = numParties).
      */
-    static std::vector<int> generateShares(int secret, int numParties) {
-        std::vector<int> shares(numParties, 0);
-
-        // Simple approach: random shares, final share = secret - sum(other shares)
-        std::mt19937 rng(std::random_device{}());
-        std::uniform_int_distribution<int> dist(-1000, 1000);
-
-        int sumSoFar = 0;
-        for(int i = 0; i < numParties - 1; ++i) {
-            shares[i] = dist(rng);
-            sumSoFar += shares[i];
-        }
-        shares[numParties - 1] = secret - sumSoFar; // ensure the sum is correct
-        return shares;
-    }
+    static std::vector<ShareType> generateShares(ShareType secret, int numParties);
 
     /**
-     * @brief Reconstructs the secret from all additive shares.
+     * @brief Reconstructs the secret from shares, mod PRIME_MODULUS.
      * @param shares Vector of shares from each party.
-     * @return The reconstructed secret value.
+     * @return The reconstructed secret value (mod PRIME_MODULUS).
      */
-    static int reconstructSecret(const std::vector<int>& shares) {
-        int sum = 0;
-        for (auto s : shares) {
-            sum += s;
-        }
-        return sum;
-    }
+    static ShareType reconstructSecret(const std::vector<ShareType>& shares);
 
-    // ...possible extensions for modular arithmetic or large values...
+    /**
+     * @brief Adds two share values (mod PRIME_MODULUS).
+     * @param x A share value.
+     * @param y A share value.
+     * @return (x + y) mod PRIME_MODULUS
+     */
+    static ShareType addShares(ShareType x, ShareType y);
+
+    /**
+     * @brief Multiplies two share values using Beaver Triples as a placeholder.
+     * @param x A share value for secret X
+     * @param y A share value for secret Y
+     * @param triple The Beaver triple (a, b, c) such that a*b=c. In practice,
+     *               each party holds a share of a, b, and c.
+     * @return (x * y) mod PRIME_MODULUS, if triple is used correctly
+     *
+     * NOTE: Full MPC multiplication with Beaver Triples requires offline
+     * distribution of triple shares. This function sketches the logic only.
+     */
+    static ShareType multiplyShares(ShareType x, ShareType y, const BeaverTriple &triple);
+
+private:
+    /**
+     * @brief For demonstration, a naive random distribution used in generateShares().
+     */
+    static std::mt19937& getRng();
+
+    /**
+     * @brief Returns a global prime BIGNUM* for modulo ops.
+     */
+    static BIGNUM* getPrime();
+
+    /**
+     * @brief Creates and returns a new BIGNUM with value = 0.
+     */
+    static ShareType newBigInt();
+
+    /**
+     * @brief Clones a BIGNUM into a new object.
+     */
+    static ShareType cloneBigInt(ShareType source);
+
+    /**
+     * @brief Thread-local RNG for random BN generation.
+     */
+    static BN_CTX* getCtx();
 };
