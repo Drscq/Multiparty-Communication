@@ -130,50 +130,61 @@ void Party::distributeOwnShares() {
     }
 }
 
-// Gathers all shares from other parties
+// Gathers all shares from other parties for their respective secrets
 void Party::gatherAllShares() {
     try {
-        // Initialize allShares structure
+        // Clear and re-init the allShares structure: (indexed by secret, then by party)
         allShares.clear();
-        allShares.resize(m_totalParties + 1);
-        for (int i = 1; i <= m_totalParties; ++i) {
-            allShares[i].resize(m_totalParties, nullptr);
-        }
+        allShares.resize(m_totalParties + 1, std::vector<ShareType>(m_totalParties, nullptr));
 
-        // Store my own shares first
-        std::cout << "[Party " << m_partyId << "] Storing own shares\n";
+        // 1) Store own shares: for secret m_partyId, at column (idx)
         for(int idx = 0; idx < m_totalParties; idx++) {
             if (myShares[idx]) {
                 allShares[m_partyId][idx] = AdditiveSecretSharing::cloneBigInt(myShares[idx]);
             }
         }
 
-        // Brief pause to ensure all parties are ready to receive
+        // 2) Wait briefly so that all parties have time to broadcast
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        // Receive shares from other parties
+        // 3) Receive the needed shares. For each secret j in [1..m_totalParties]:
         for(int j = 1; j <= m_totalParties; ++j) {
-            if (j == m_partyId) continue;
-
-            std::cout << "[Party " << m_partyId << "] Waiting for share from Party " << j << "\n";
-            std::vector<ShareType> receivedShares;
-            
-            try {
-                receiveShares(receivedShares, 1);
-                if (!receivedShares.empty() && receivedShares[0]) {
-                    allShares[j][m_partyId - 1] = receivedShares[0];
-                    std::cout << "[Party " << m_partyId << "] Successfully stored share from Party " 
-                              << j << "\n";
-                }
+            // We already stored our own shares for our secret (if j == m_partyId), so just skip
+            if (j == m_partyId) {
+                continue;
             }
-            catch (const std::exception& e) {
-                std::cerr << "[Party " << m_partyId << "] Failed to receive from Party " 
-                          << j << ": " << e.what() << "\n";
-                throw;
+
+            // Each party (including j, and except ourselves) potentially holds a share for secret j.
+            // We need to collect that share from every other party k != m_partyId.
+            for(int k = 1; k <= m_totalParties; ++k) {
+                if (k == m_partyId) {
+                    continue; // skip receiving from ourselves
+                }
+
+                std::cout << "[Party " << m_partyId << "] Waiting for share from Party " << k 
+                          << " for secret of Party " << j << "\n";
+
+                std::vector<ShareType> receivedShares;
+                try {
+                    // Receive exactly 1 share from party k
+                    receiveShares(receivedShares, 1);
+
+                    if (!receivedShares.empty() && receivedShares[0]) {
+                        // Store share from party k for secret j in allShares[j][k-1]
+                        allShares[j][k - 1] = receivedShares[0];
+                        std::cout << "[Party " << m_partyId << "] Stored share from Party "
+                                  << k << " for secret of Party " << j << "\n";
+                    }
+                }
+                catch (const std::exception& e) {
+                    std::cerr << "[Party " << m_partyId << "] Failed to receive share from Party " 
+                              << k << " for secret of Party " << j << ": " << e.what() << "\n";
+                    throw;
+                }
             }
         }
 
-        std::cout << "[Party " << m_partyId << "] Successfully gathered all shares\n";
+        std::cout << "[Party " << m_partyId << "] Successfully gathered all shares for all secrets\n";
     }
     catch (const std::exception& e) {
         std::cerr << "[Party " << m_partyId << "] Error in gatherAllShares: " << e.what() << "\n";
@@ -203,25 +214,63 @@ void Party::broadcastPartialSum(long long partialSum) {
     }
 }
 
-// Computes the global sum of secrets by receiving partial sums from all parties
+// Reconstructs all secrets from the shares and computes the global sum
 void Party::computeGlobalSumOfSecrets() {
     try {
-        long long globalSum = 0; // Initialize with 0
-        for(int i = 1; i <= m_totalParties; ++i) {
-            if(i == m_partyId) {
-                globalSum += m_localValue; // Assuming m_localValue holds the party's own value
+        BIGNUM* globalSum = AdditiveSecretSharing::newBigInt(); // Initialize to 0
+        BN_zero(globalSum);
+
+        // Iterate over each party to reconstruct their secret and add to global sum
+        for(int j = 1; j <= m_totalParties; ++j) {
+            if(j == m_partyId) {
+                // Add own local value directly
+                BIGNUM* ownValueBN = AdditiveSecretSharing::newBigInt();
+                if(!BN_set_word(ownValueBN, m_localValue)) {
+                    BN_free(ownValueBN);
+                    throw std::runtime_error("BN_set_word failed for own value");
+                }
+                BN_mod_add(globalSum, globalSum, ownValueBN, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+                BN_free(ownValueBN);
                 continue;
             }
-            long long receivedSum = 0;
-            // Receive partial sum from Party i
-            // This should be implemented based on the communication protocol
-            // Example:
-            // m_comm->receive(i, &receivedSum, sizeof(receivedSum));
-            std::cout << "[Party " << m_partyId << "] Received partial sum " 
-                      << receivedSum << " from Party " << i << "\n";
-            globalSum += receivedSum;
+
+            // Check if all shares for Party j's secret are available
+            bool allSharesAvailable = true;
+            for(int k = 1; k <= m_totalParties; ++k) {
+                // Each secret j should have shares s_{j1}, s_{j2}, ..., s_{jn}
+                // Here, s_{jk} is stored in allShares[j][k-1]
+                if(allShares[j][k - 1] == nullptr) {
+                    std::cerr << "[Party " << m_partyId << "] Missing share from Party " 
+                              << k << " for secret of Party " << j << "\n";
+                    allSharesAvailable = false;
+                    break;
+                }
+            }
+
+            if(!allSharesAvailable) {
+                throw std::runtime_error("Incomplete shares for Party " + std::to_string(j));
+            }
+
+            // Reconstruct secret from shares
+            BIGNUM* secret = AdditiveSecretSharing::newBigInt();
+            AdditiveSecretSharing::reconstructSecret(allShares[j], secret);
+
+            // Add the reconstructed secret to the global sum
+            BN_mod_add(globalSum, globalSum, secret, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+
+            BN_free(secret);
         }
-        std::cout << "[Party " << m_partyId << "] Global sum of all secrets: " << globalSum << "\n";
+
+        // Convert globalSum to a human-readable format
+        char* sumStr = BN_bn2dec(globalSum);
+        if(!sumStr) {
+            BN_free(globalSum);
+            throw std::runtime_error("Failed to convert global sum to decimal string");
+        }
+
+        std::cout << "[Party " << m_partyId << "] Global sum of all secrets: " << sumStr << "\n";
+        OPENSSL_free(sumStr);
+        BN_free(globalSum);
     }
     catch (const std::exception& e) {
         std::cerr << "[Party " << m_partyId << "] Error in computeGlobalSumOfSecrets: " << e.what() << "\n";

@@ -78,12 +78,6 @@ public:
      */
     static ShareType cloneBigInt(ShareType source);
 
-private:
-    /**
-     * @brief For demonstration, a naive random distribution used in generateShares().
-     */
-    static std::mt19937& getRng();
-
     /**
      * @brief Returns a global prime BIGNUM* for modulo ops.
      */
@@ -93,4 +87,10 @@ private:
      * @brief Thread-local RNG for random BN generation.
      */
     static BN_CTX* getCtx();
+
+private:
+    /**
+     * @brief For demonstration, a naive random distribution used in generateShares().
+     */
+    static std::mt19937& getRng();
 };

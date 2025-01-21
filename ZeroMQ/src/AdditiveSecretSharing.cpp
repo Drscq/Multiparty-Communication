@@ -44,7 +44,7 @@ ShareType AdditiveSecretSharing::cloneBigInt(ShareType source) {
 void AdditiveSecretSharing::generateShares(ShareType secret, int numParties, std::vector<ShareType>& sharesOut) {
     sharesOut.resize(numParties);
 
-    BIGNUM* sumSoFar = newBigInt(); // = 0
+    BIGNUM* sumSoFar = newBigInt(); // Initialize to 0
     for(int i = 0; i < numParties; i++) {
         sharesOut[i] = newBigInt();
     }
