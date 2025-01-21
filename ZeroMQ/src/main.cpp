@@ -49,21 +49,21 @@ int main(int argc, char* argv[])
                   << (mode == NetIOMPFactory::Mode::REQ_REP ? "REQ/REP" : "DEALER/ROUTER")
                   << " mode.\n";
 
-        // Create a Party object with our chosen ID, total parties, input value, and netIOMP
-        Party myParty(myPartyId, totalParties, inputValue, netIOMP.get()); // Use .get() to pass raw pointer
+        // Create a Party object with our chosen ID, total parties, input value, netIOMP, and mode
+        Party myParty(myPartyId, totalParties, inputValue, netIOMP.get(), mode);
         myParty.init();
 
         // Wait for a short period to ensure the server is ready
         std::this_thread::sleep_for(std::chrono::seconds(2));
 
-        // Every party broadcasts its local value
+        // Broadcast local value based on mode
         myParty.broadcastValue();
         std::cout << "[Party " << myPartyId << "] Broadcasted local value.\n";
 
         // Optionally wait a little to ensure sends have gone out
         std::this_thread::sleep_for(std::chrono::seconds(2));
 
-        // Every party receives values from all other parties and computes the sum
+        // Receive values and compute the sum
         int sum = myParty.receiveAllValuesAndComputeSum();
         std::cout << "[Party " << myPartyId << "] Final sum of all inputs: " << sum << "\n";
 

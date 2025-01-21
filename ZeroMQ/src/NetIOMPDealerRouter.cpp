@@ -70,13 +70,13 @@ size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T
 {
     // 1) Receive routing ID frame
     zmq::message_t routingIdMsg;
+    zmq::message_t dataMsg;
+
     auto idRes = m_routerSocket->recv(routingIdMsg, zmq::recv_flags::none);
     if (!idRes) {
         throw std::runtime_error("[NetIOMPDealerRouter] Failed to receive routing ID.");
     }
 
-    // 2) Receive data frame
-    zmq::message_t dataMsg;
     auto dataRes = m_routerSocket->recv(dataMsg, zmq::recv_flags::none);
     if (!dataRes) {
         throw std::runtime_error("[NetIOMPDealerRouter] Failed to receive data frame.");
