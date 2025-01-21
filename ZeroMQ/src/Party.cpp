@@ -123,6 +123,8 @@ void Party::distributeOwnShares() {
 
         std::cout << "[Party " << m_partyId << "] Generated " << myShares.size() << " shares\n";
         broadcastShares(myShares);
+
+        syncAfterDistribute();
     }
     catch (const std::exception& e) {
         std::cerr << "[Party " << m_partyId << "] Error in distributeOwnShares: " << e.what() << "\n";
@@ -130,61 +132,110 @@ void Party::distributeOwnShares() {
     }
 }
 
-// Gathers all shares from other parties for their respective secrets
+// New helper: broadcast every share we currently hold for every secret j.
+void Party::broadcastAllHeldShares() {
+    // For each secret j in [1..m_totalParties], each share from col k in [0..m_totalParties-1]
+    for(int j = 1; j <= m_totalParties; ++j) {
+        for(int k = 0; k < m_totalParties; ++k) {
+            ShareType share = allShares[j][k];
+            if(!share) continue; // Skip missing or null shares
+
+            try {
+                // Serialize the share into hex
+                std::string s = serializeShare(share);
+                // Each broadcast will include which secret j and which “column” k
+                // so the receiver knows where to store it.
+                // We’ll format it like: "j|k|<hex>"
+                std::string msg = std::to_string(j) + "|" + std::to_string(k) + "|" + s;
+                m_comm->sendToAll(msg.c_str(), msg.size());
+            }
+            catch(const std::exception &e) {
+                std::cerr << "[Party " << m_partyId << "] Error broadcasting share of secret " 
+                          << j << " col " << k << ": " << e.what() << "\n";
+            }
+        }
+    }
+    std::cout << "[Party " << m_partyId << "] broadcastAllHeldShares() completed\n";
+}
+
+// Modified gatherAllShares(): call broadcastAllHeldShares() after storing our own shares,
+// then receive re-broadcasts from all parties. This ensures each party gets all s_{j,k}.
 void Party::gatherAllShares() {
     try {
-        // Clear and re-init the allShares structure: (indexed by secret, then by party)
+        // 1) Prepare allShares
         allShares.clear();
         allShares.resize(m_totalParties + 1, std::vector<ShareType>(m_totalParties, nullptr));
 
-        // 1) Store own shares: for secret m_partyId, at column (idx)
+        // 2) Store our local secret's shares in row [m_partyId]
         for(int idx = 0; idx < m_totalParties; idx++) {
             if (myShares[idx]) {
                 allShares[m_partyId][idx] = AdditiveSecretSharing::cloneBigInt(myShares[idx]);
             }
         }
 
-        // 2) Wait briefly so that all parties have time to broadcast
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // 3) Brief pause so all parties finish distributing their own secrets
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
-        // 3) Receive the needed shares. For each secret j in [1..m_totalParties]:
-        for(int j = 1; j <= m_totalParties; ++j) {
-            // We already stored our own shares for our secret (if j == m_partyId), so just skip
-            if (j == m_partyId) {
+        // 4) Each party now broadcasts everything it holds so far
+        broadcastAllHeldShares();
+
+        // 5) Receive enough shares to fill allShares[][] for secrets j=1..N, k=0..N-1.
+        // We need (m_totalParties - 1)*m_totalParties more pieces at most
+        int needed = m_totalParties * m_totalParties; // rough upper bound
+        int receivedCount = 0;
+        int idleCount = 0; // Track consecutive idle loops
+        const int IDLE_LIMIT = 20; // E.g., 20 tries, tweak as needed
+
+        while(receivedCount < needed && idleCount < IDLE_LIMIT) {
+            PARTY_ID_T senderId;
+            char buffer[BUFFER_SIZE];
+            size_t bytesRead = 0;
+
+            // Try a non-blocking receive or short blocking with a try/catch
+            try {
+                bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
+            } catch(...) {
+                // No message this round
+                bytesRead = 0;
+            }
+
+            if (bytesRead == 0) {
+                // No new data, increment idleCount
+                idleCount++;
+                std::this_thread::sleep_for(std::chrono::milliseconds(50)); // small wait
+                continue;
+            } else {
+                idleCount = 0; // reset idle
+            }
+
+            std::string fullMsg(buffer, bytesRead);
+            // Expect format: "j|k|<hex>"
+            size_t pos1 = fullMsg.find('|');
+            size_t pos2 = fullMsg.find('|', pos1 + 1);
+            if(pos1 == std::string::npos || pos2 == std::string::npos) {
                 continue;
             }
 
-            // Each party (including j, and except ourselves) potentially holds a share for secret j.
-            // We need to collect that share from every other party k != m_partyId.
-            for(int k = 1; k <= m_totalParties; ++k) {
-                if (k == m_partyId) {
-                    continue; // skip receiving from ourselves
-                }
+            int secretOwner = std::stoi(fullMsg.substr(0, pos1));
+            int colIndex = std::stoi(fullMsg.substr(pos1 + 1, pos2 - (pos1 + 1)));
+            std::string hexVal = fullMsg.substr(pos2 + 1);
 
-                std::cout << "[Party " << m_partyId << "] Waiting for share from Party " << k 
-                          << " for secret of Party " << j << "\n";
-
-                std::vector<ShareType> receivedShares;
-                try {
-                    // Receive exactly 1 share from party k
-                    receiveShares(receivedShares, 1);
-
-                    if (!receivedShares.empty() && receivedShares[0]) {
-                        // Store share from party k for secret j in allShares[j][k-1]
-                        allShares[j][k - 1] = receivedShares[0];
-                        std::cout << "[Party " << m_partyId << "] Stored share from Party "
-                                  << k << " for secret of Party " << j << "\n";
-                    }
+            try {
+                ShareType incoming = deserializeShare(hexVal);
+                if(allShares[secretOwner][colIndex] == nullptr) {
+                    allShares[secretOwner][colIndex] = incoming;
+                    receivedCount++;
+                } else {
+                    BN_free(incoming); // discard duplicates
                 }
-                catch (const std::exception& e) {
-                    std::cerr << "[Party " << m_partyId << "] Failed to receive share from Party " 
-                              << k << " for secret of Party " << j << ": " << e.what() << "\n";
-                    throw;
-                }
+            }
+            catch(const std::exception &e) {
+                std::cerr << "[Party " << m_partyId << "] Failed to deserialize broadcast: " 
+                          << e.what() << "\n";
             }
         }
 
-        std::cout << "[Party " << m_partyId << "] Successfully gathered all shares for all secrets\n";
+        std::cout << "[Party " << m_partyId << "] Successfully gathered all shares\n";
     }
     catch (const std::exception& e) {
         std::cerr << "[Party " << m_partyId << "] Error in gatherAllShares: " << e.what() << "\n";
@@ -196,6 +247,8 @@ void Party::gatherAllShares() {
         }
         throw;
     }
+
+    syncAfterGather();
 }
 
 // Broadcasts a partial sum to all parties
@@ -291,6 +344,54 @@ void Party::doMultiplicationDemo() {
 
     std::cout << "[Party " << m_partyId
               << "] doMultiplicationDemo: multi-party Beaver logic not fully implemented.\n";
+}
+
+// New helper for synchronization after distribution
+void Party::syncAfterDistribute() {
+    // Broadcast a short “done distributing” message to all
+    const char* doneMsg = "DONE_DISTRIBUTING";
+    m_comm->sendToAll(doneMsg, std::strlen(doneMsg));
+
+    // Now wait to receive the same message from all other parties
+    int needed = m_totalParties - 1;
+    int got = 0;
+    while(got < needed) {
+        PARTY_ID_T senderId;
+        char buffer[BUFFER_SIZE];
+        size_t bytesRead = 0;
+        bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
+        if(bytesRead > 0) {
+            std::string msg(buffer, bytesRead);
+            if(msg == "DONE_DISTRIBUTING" && senderId != m_partyId) {
+                got++;
+            }
+        }
+    }
+    std::cout << "[Party " << m_partyId << "] All parties done distributing.\n";
+}
+
+// New helper for synchronization after gathering
+void Party::syncAfterGather() {
+    // Broadcast a short “done gathering” message
+    const char* doneMsg = "DONE_GATHERING";
+    m_comm->sendToAll(doneMsg, std::strlen(doneMsg));
+
+    // Wait to receive the same from all other parties
+    int needed = m_totalParties - 1;
+    int got = 0;
+    while(got < needed) {
+        PARTY_ID_T senderId;
+        char buffer[BUFFER_SIZE];
+        size_t bytesRead = 0;
+        bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
+        if(bytesRead > 0) {
+            std::string msg(buffer, bytesRead);
+            if(msg == "DONE_GATHERING" && senderId != m_partyId) {
+                got++;
+            }
+        }
+    }
+    std::cout << "[Party " << m_partyId << "] All parties done gathering.\n";
 }
 
 // Other existing methods...

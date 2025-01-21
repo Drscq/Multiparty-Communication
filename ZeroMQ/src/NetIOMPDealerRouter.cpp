@@ -25,6 +25,8 @@ void NetIOMPDealerRouter::init()
     // Set socket options
     int linger = 0;
     m_routerSocket->set(zmq::sockopt::linger, linger);
+    int rcvTimeout = 300; // ms
+    m_routerSocket->set(zmq::sockopt::rcvtimeo, rcvTimeout);
 
     auto [myIp, myPort] = m_partyInfo.at(m_partyId);
     std::string bindEndpoint = "tcp://" + myIp + ":" + std::to_string(myPort);
@@ -80,18 +82,20 @@ void NetIOMPDealerRouter::sendToAll(const void* data, LENGTH_T length)
 
 size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength)
 {
-    // 1) Receive routing ID frame
+    // 1) Attempt to receive routing ID frame with set timeout
     zmq::message_t routingIdMsg;
     auto idRes = m_routerSocket->recv(routingIdMsg, zmq::recv_flags::none);
     if (!idRes) {
-        throw std::runtime_error("[NetIOMPDealerRouter] Failed to receive routing ID.");
+        // No message arrived within the timeout
+        return 0;
     }
 
-    // 2) Receive data frame
+    // 2) Attempt to receive data frame
     zmq::message_t dataMsg;
     auto dataRes = m_routerSocket->recv(dataMsg, zmq::recv_flags::none);
     if (!dataRes) {
-        throw std::runtime_error("[NetIOMPDealerRouter] Failed to receive data frame.");
+        // No data arrived for the second frame
+        return 0;
     }
 
     // Extract senderId from the routing ID

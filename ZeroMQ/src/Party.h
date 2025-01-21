@@ -97,6 +97,11 @@ public:
     // A placeholder for multi-party multiplication with beaver
     void doMultiplicationDemo();
 
+    // Declare the new methods
+    void broadcastAllHeldShares();
+    void syncAfterDistribute();
+    void syncAfterGather();
+
 private:
     PARTY_ID_T m_partyId;
     int m_totalParties;
