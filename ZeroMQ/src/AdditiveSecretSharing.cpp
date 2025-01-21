@@ -94,21 +94,61 @@ void AdditiveSecretSharing::addShares(const std::vector<ShareType>& inputShares,
 void AdditiveSecretSharing::multiplyShares(ShareType x, ShareType y,
                                            const BeaverTriple &triple, ShareType &product)
 {
-    // ...existing code...
+    // 1) Locally compute d = (x - a), e = (y - b)
     BIGNUM* d = newBigInt();
     BIGNUM* e = newBigInt();
-    BN_mod_sub(d, x, triple.a, getPrime(), getCtx());
-    BN_mod_sub(e, y, triple.b, getPrime(), getCtx());
+    if(!BN_mod_sub(d, x, triple.a, getPrime(), getCtx())) {
+        throw std::runtime_error("BN_mod_sub failed for d");
+    }
+    if(!BN_mod_sub(e, y, triple.b, getPrime(), getCtx())) {
+        BN_free(d);
+        throw std::runtime_error("BN_mod_sub failed for e");
+    }
 
-    BN_copy(product, triple.c);
-    BIGNUM* tmp = newBigInt();
+    // 2) Compute a * E and b * D
+    BIGNUM* aE = newBigInt();
+    BIGNUM* bD = newBigInt();
+    if(!BN_mod_mul(aE, triple.a, e, getPrime(), getCtx())) {
+        BN_free(d);
+        BN_free(e);
+        BN_free(aE);
+        throw std::runtime_error("BN_mod_mul failed for aE");
+    }
+    if(!BN_mod_mul(bD, triple.b, d, getPrime(), getCtx())) {
+        BN_free(d);
+        BN_free(e);
+        BN_free(aE);
+        BN_free(bD);
+        throw std::runtime_error("BN_mod_mul failed for bD");
+    }
 
-    // ...existing code...
-    BN_mod_mul(tmp, triple.a, e, getPrime(), getCtx());
-    BN_mod_add(product, product, tmp, getPrime(), getCtx());
+    // 3) Compute D * E
 
-    // ...existing code...
-    BN_free(tmp);
+    BIGNUM* DE = newBigInt();
+    if(!BN_mod_mul(DE, d, e, getPrime(), getCtx())) {
+        BN_free(d);
+        BN_free(e);
+        BN_free(aE);
+        BN_free(bD);
+        BN_free(DE);
+        throw std::runtime_error("BN_mod_mul failed for DE");
+    }
+
+    // 4) Compute c + aE + bD + DE
+    if(!BN_mod_add(product, triple.c, aE, getPrime(), getCtx())) {
+        throw std::runtime_error("BN_mod_add failed for c + aE");
+    }
+    if(!BN_mod_add(product, product, bD, getPrime(), getCtx())) {
+        throw std::runtime_error("BN_mod_add failed for + bD");
+    }
+    if(!BN_mod_add(product, product, DE, getPrime(), getCtx())) {
+        throw std::runtime_error("BN_mod_add failed for + DE");
+    }
+
+    // Free temporary BIGNUMs
     BN_free(d);
     BN_free(e);
+    BN_free(aE);
+    BN_free(bD);
+    BN_free(DE);
 }

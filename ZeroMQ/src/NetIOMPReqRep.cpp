@@ -87,6 +87,15 @@ void NetIOMPReqRep::sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T lengt
     }
 }
 
+void NetIOMPReqRep::sendToAll(const void* data, LENGTH_T length)
+{
+    for (const auto& [pid, info] : m_partyInfo) {
+        if (pid != m_partyId) {
+            sendTo(pid, data, length);
+        }
+    }
+}
+
 size_t NetIOMPReqRep::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength)
 {
     // Receive the multipart message

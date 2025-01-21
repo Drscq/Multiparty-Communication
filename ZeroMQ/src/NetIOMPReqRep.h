@@ -19,6 +19,7 @@ public:
     size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength) override;
     void reply(const void* data, LENGTH_T length) override;
     void close() override;
+    void sendToAll(const void* data, LENGTH_T length) override;
     ~NetIOMPReqRep() override;
 
 private:

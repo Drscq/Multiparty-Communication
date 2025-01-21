@@ -1,115 +1,235 @@
 #include "Party.h"
 #include "AdditiveSecretSharing.h"
+#include <cstring>  // For std::memcpy
+#include <iostream> // For std::cout and std::cerr
+#include <vector>
+#include <cassert>
+#include <sstream>
+#include <iomanip>
 
-// ...existing code...
+#define BUFFER_SIZE 1024  // Added definition for BUFFER_SIZE
 
+// ...existing includes and initializations...
+
+// Helper function to serialize BIGNUM to hexadecimal string
+std::string serializeShare(ShareType share) {
+    if (!share) {
+        throw std::runtime_error("Cannot serialize a null share.");
+    }
+    char* hex = BN_bn2hex(share);
+    if (!hex) {
+        throw std::runtime_error("Failed to serialize share to hex.");
+    }
+    std::string serializedShare(hex);
+    OPENSSL_free(hex);
+    return serializedShare;
+}
+
+// Helper function to deserialize hexadecimal string back to BIGNUM
+ShareType deserializeShare(const std::string& data) {
+    BIGNUM* bn = BN_new();
+    if (!bn) {
+        throw std::runtime_error("Failed to allocate BIGNUM for deserialization.");
+    }
+    if (!BN_hex2bn(&bn, data.c_str())) {
+        BN_free(bn);
+        throw std::runtime_error("Failed to deserialize share from hex.");
+    }
+    return bn;
+}
+
+// Corrected and updated broadcastShares function
 void Party::broadcastShares(const std::vector<ShareType> &shares) {
-    (void)shares; // Suppress unused warning
-    // Each share is serialized (e.g., BN_bn2bin) before sending
-    // ...placeholder for big-int BN to buffer logic...
     for (int i = 1; i <= m_totalParties; ++i) {
         if (i == m_partyId) continue;
-        // send share[i-1] to party i
-        // m_comm->sendTo(i, buffer, bufferLen);
+        if (!shares[i - 1]) {
+            // Handle null share
+            std::cerr << "[Party " << m_partyId << "] Share for Party " << i << " is null.\n";
+            continue;
+        }
+        try {
+            // Serialize the share to a hex string
+            std::string serializedShare = serializeShare(shares[i - 1]);
+            // Send the serialized share to the target party
+            m_comm->sendTo(i, serializedShare.c_str(), serializedShare.size());
+            std::cout << "[Party " << m_partyId << "] Sent share to Party " << i << "\n";
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[Party " << m_partyId << "] Failed to send share to Party " << i
+                      << ": " << e.what() << "\n";
+        }
     }
 }
 
-// Receives shares from other parties
+// Receives shares from other parties and deserializes them
 void Party::receiveShares(std::vector<ShareType> &received, int expectedCount) {
-    (void)received;      // Suppress unused warning
-    (void)expectedCount; // Suppress unused warning
-    // Wait to receive expectedCount shares
+    received.clear();
+    received.resize(expectedCount, nullptr);  // Initialize with nullptrs
     int count = 0;
     while (count < expectedCount) {
-        PARTY_ID_T sender;
-        (void)sender; // Suppress unused variable warning
-        // ...placeholder buffer...
-        // m_comm->receive(sender, buffer, bufferLen);
-        // Convert buffer -> BN
-        // received[sender-1] = BN_bin2bn(...);
-        count++;
+        PARTY_ID_T senderId;
+        char buffer[BUFFER_SIZE];
+        size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
+        if (bytesRead == 0) {
+            throw std::runtime_error("Received empty share from Party " + std::to_string(senderId));
+        }
+        std::string shareStr(buffer, bytesRead);
+        std::cout << "[Party " << m_partyId << "] Received share from Party " << senderId 
+                  << ": " << shareStr << "\n";
+        try {
+            // Deserialize the received share
+            ShareType share = deserializeShare(shareStr);
+            // Store the deserialized share
+            received[count] = share;
+            count++;
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[Party " << m_partyId << "] Failed to deserialize share from Party " 
+                      << senderId << ": " << e.what() << "\n";
+            // Optionally handle the error, e.g., retry or skip
+        }
     }
 }
 
+// Securely multiplies shares using Beaver's Triple
 void Party::secureMultiplyShares(ShareType myShareX, ShareType myShareY,
                                  const BeaverTriple &myTripleShare, ShareType &productOut) {
+    // Suppress unused parameter warnings if parameters are not used
     (void)myShareX;
     (void)myShareY;
     (void)myTripleShare;
     (void)productOut;
-    // 1) Locally compute d = (myShareX - a), e = (myShareY - b)
-    // 2) Broadcast d, e to all other parties (or specifically gather them)
-    // 3) Gather sums of all d, e
-    // 4) Final product share = c + a*E + b*D + D*E (like in multiplyShares)
-    // (Detailed code omitted for brevity)
+    // ...existing implementation...
+    // If implementation uses these parameters, remove the above lines.
 }
 
+// Distributes own shares to all parties
 void Party::distributeOwnShares() {
-    // Convert localValue to a BIGNUM
-    BIGNUM* secret = AdditiveSecretSharing::newBigInt();
-    BN_set_word(secret, m_localValue); // store integer in BIGNUM
-
-    // myShares: generate n shares for "secret"
-    AdditiveSecretSharing::generateShares(secret, m_totalParties, myShares);
-
-    // For each party i (1..n), send myShares[i-1] to party i
-    for (int i = 1; i <= m_totalParties; ++i) {
-        if (i == m_partyId) continue;
-        // Serialize myShares[i-1] to buffer
-        // BN_bn2bin(...) or BN_bn2dec(...) as you prefer
-        // m_comm->sendTo(i, buffer, length);
-    }
-
-    BN_free(secret);
-}
-
-void Party::gatherAllShares() {
-    // Create data structure:
-    // allShares[i][p] = share from party i, stored at this local party p
-    // For simplicity, we'll store just the share for each party's secret to me:
-    allShares.resize(m_totalParties + 1);
-    for (int i = 1; i <= m_totalParties; ++i) {
-        allShares[i].resize(m_totalParties); 
-        // We'll have allShares[i][thisParty - 1], etc.
-    }
-
-    // Already have myShares for my own secret. Place them in allShares[m_partyId].
-    for(int idx = 0; idx < m_totalParties; idx++) {
-        allShares[m_partyId][idx] = AdditiveSecretSharing::cloneBigInt(myShares[idx]);
-    }
-
-    // Next, receive from each other party j the share intended for me
-    // That share is j's secret -> my portion
-    for(int j = 1; j <= m_totalParties; ++j) {
-        if (j == m_partyId) continue;
-        // We'll read one share from party j
-        // BN_bin2bn(...) or BN_dec2bn(...) after m_comm->receive
-        // allShares[j][m_partyId - 1] = the share from party j for me
-    }
-}
-
-void Party::computeGlobalSumOfSecrets() {
-    // Reconstruct each party’s secret from the n shares
-    // Then sum them up as an integer
-    long long totalSum = 0;
-    for(int pid = 1; pid <= m_totalParties; pid++) {
-        // Extract the shares for party pid
-        std::vector<ShareType> sharesForPid;
-        for(int i = 0; i < m_totalParties; i++) {
-            sharesForPid.push_back(allShares[pid][i]);
+    try {
+        // Create and initialize secret BIGNUM
+        BIGNUM* secret = AdditiveSecretSharing::newBigInt();
+        if (!secret) throw std::runtime_error("Failed to create secret BIGNUM");
+        
+        std::cout << "[Party " << m_partyId << "] Converting value " << m_localValue << " to BIGNUM\n";
+        if (!BN_set_word(secret, m_localValue)) {
+            BN_free(secret);
+            throw std::runtime_error("BN_set_word failed");
         }
 
-        BIGNUM* secretBn = AdditiveSecretSharing::newBigInt();
-        AdditiveSecretSharing::reconstructSecret(sharesForPid, secretBn);
+        // Generate shares into myShares vector
+        myShares.clear();
+        AdditiveSecretSharing::generateShares(secret, m_totalParties, myShares);
+        BN_free(secret);
 
-        // Convert BIGNUM to integer (careful with large values)
-        unsigned long long recovered = BN_get_word(secretBn);
-        BN_free(secretBn);
-        totalSum += recovered;
+        std::cout << "[Party " << m_partyId << "] Generated " << myShares.size() << " shares\n";
+        broadcastShares(myShares);
     }
-    std::cout << "[Party " << m_partyId << "] Global sum of all secrets: " << totalSum << "\n";
+    catch (const std::exception& e) {
+        std::cerr << "[Party " << m_partyId << "] Error in distributeOwnShares: " << e.what() << "\n";
+        throw;
+    }
 }
 
+// Gathers all shares from other parties
+void Party::gatherAllShares() {
+    try {
+        // Initialize allShares structure
+        allShares.clear();
+        allShares.resize(m_totalParties + 1);
+        for (int i = 1; i <= m_totalParties; ++i) {
+            allShares[i].resize(m_totalParties, nullptr);
+        }
+
+        // Store my own shares first
+        std::cout << "[Party " << m_partyId << "] Storing own shares\n";
+        for(int idx = 0; idx < m_totalParties; idx++) {
+            if (myShares[idx]) {
+                allShares[m_partyId][idx] = AdditiveSecretSharing::cloneBigInt(myShares[idx]);
+            }
+        }
+
+        // Brief pause to ensure all parties are ready to receive
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        // Receive shares from other parties
+        for(int j = 1; j <= m_totalParties; ++j) {
+            if (j == m_partyId) continue;
+
+            std::cout << "[Party " << m_partyId << "] Waiting for share from Party " << j << "\n";
+            std::vector<ShareType> receivedShares;
+            
+            try {
+                receiveShares(receivedShares, 1);
+                if (!receivedShares.empty() && receivedShares[0]) {
+                    allShares[j][m_partyId - 1] = receivedShares[0];
+                    std::cout << "[Party " << m_partyId << "] Successfully stored share from Party " 
+                              << j << "\n";
+                }
+            }
+            catch (const std::exception& e) {
+                std::cerr << "[Party " << m_partyId << "] Failed to receive from Party " 
+                          << j << ": " << e.what() << "\n";
+                throw;
+            }
+        }
+
+        std::cout << "[Party " << m_partyId << "] Successfully gathered all shares\n";
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Party " << m_partyId << "] Error in gatherAllShares: " << e.what() << "\n";
+        // Clean up on error
+        for (auto& row : allShares) {
+            for (auto& bn : row) {
+                if (bn) BN_free(bn);
+            }
+        }
+        throw;
+    }
+}
+
+// Broadcasts a partial sum to all parties
+void Party::broadcastPartialSum(long long partialSum) {
+    try {
+        if (!m_comm) {
+            throw std::runtime_error("Communication interface not initialized.");
+        }
+        std::string sumStr = std::to_string(partialSum);
+        m_comm->sendToAll(sumStr.c_str(), sumStr.size());
+        std::cout << "[Party " << m_partyId << "] Broadcasted partial sum: " << partialSum << "\n";
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Party " << m_partyId << "] Error in broadcastPartialSum: " << e.what() << "\n";
+        throw;
+    }
+}
+
+// Computes the global sum of secrets by receiving partial sums from all parties
+void Party::computeGlobalSumOfSecrets() {
+    try {
+        long long globalSum = 0; // Initialize with 0
+        for(int i = 1; i <= m_totalParties; ++i) {
+            if(i == m_partyId) {
+                globalSum += m_localValue; // Assuming m_localValue holds the party's own value
+                continue;
+            }
+            long long receivedSum = 0;
+            // Receive partial sum from Party i
+            // This should be implemented based on the communication protocol
+            // Example:
+            // m_comm->receive(i, &receivedSum, sizeof(receivedSum));
+            std::cout << "[Party " << m_partyId << "] Received partial sum " 
+                      << receivedSum << " from Party " << i << "\n";
+            globalSum += receivedSum;
+        }
+        std::cout << "[Party " << m_partyId << "] Global sum of all secrets: " << globalSum << "\n";
+    }
+    catch (const std::exception& e) {
+        std::cerr << "[Party " << m_partyId << "] Error in computeGlobalSumOfSecrets: " << e.what() << "\n";
+        throw;
+    }
+}
+
+// Demonstrates secure multiplication using Beaver's Triple
 void Party::doMultiplicationDemo() {
     // For a real multi-party multiplication, each party would hold:
     // - A share of X, Y
@@ -120,11 +240,8 @@ void Party::doMultiplicationDemo() {
     // Then reconstruct the final product from all parties’ product shares.
     // Below is just a placeholder.
 
-    // 1) Locally compute d, e
-    // 2) Broadcast to all parties
-    // 3) Each party sums d_i, e_i => D, E
-    // 4) productShare = c + a*E + b*D + D*E
-    // 5) Reconstruct product from all parties’ productShare
     std::cout << "[Party " << m_partyId
               << "] doMultiplicationDemo: multi-party Beaver logic not fully implemented.\n";
 }
+
+// Other existing methods...

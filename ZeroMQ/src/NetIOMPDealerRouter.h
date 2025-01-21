@@ -20,6 +20,7 @@ public:
     size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength) override;
     void reply(const void* data, LENGTH_T length) override;
     void close() override;
+    void sendToAll(const void* data, LENGTH_T length) override; // Ensure this is declared
     ~NetIOMPDealerRouter() override;
 
 private:
@@ -34,7 +35,7 @@ private:
     std::string getIdentity(PARTY_ID_T partyId);
 
     // Store the routing ID of the last received message
-    std::string m_lastRoutingId; // Added member variable
+    std::string m_lastRoutingId; // Ensure this is correctly updated in receive()
 };
 
 #endif // NET_IOMP_DEALERROUTER_H

@@ -63,7 +63,7 @@ for ((i=1; i<=$NUM_PARTIES; i++)); do
     INPUT_VALUE=$((i * 10))
     ./netiomp_test $MODE $i $NUM_PARTIES $INPUT_VALUE &
     PIDS+=($!)
-    sleep 1
+    sleep 1  # Ensure staggered starts
 done
 
 # Wait for all parties to finish

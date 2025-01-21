@@ -3,7 +3,10 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include <thread>   // Add this for std::this_thread
+#include <chrono>   // Add this for std::chrono
 #include "AdditiveSecretSharing.h" // incorporate big-int sharing
+#include <string> // Add this for string operations
 
 /**
  * @brief Represents an individual party in the MPC protocol.
@@ -62,6 +65,18 @@ public:
     void receiveShares(std::vector<ShareType> &received, int expectedCount);
     void secureMultiplyShares(ShareType myShareX, ShareType myShareY,
                               const BeaverTriple &myTripleShare, ShareType &productOut);
+
+    /**
+     * @brief Broadcasts this party's partial sum to all other parties.
+     * @param partialSum The computed partial sum of this party's shares.
+     */
+    void broadcastPartialSum(long long partialSum);
+
+    /**
+     * @brief Receives partial sums from all other parties and computes the global sum.
+     * @param globalSum Reference to store the final global sum.
+     */
+    void receivePartialSums(long long& globalSum);
 
     // Each party’s secret shares for that party’s secret
     std::vector<ShareType> myShares;

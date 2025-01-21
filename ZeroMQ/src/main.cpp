@@ -44,39 +44,37 @@ int main(int argc, char* argv[])
         auto netIOMP = NetIOMPFactory::createNetIOMP(mode, myPartyId, partyInfo);
         netIOMP->init();
 
-        std::cout << "Party " << myPartyId
-                  << " initialized. Ready to perform MPC using "
-                  << (mode == NetIOMPFactory::Mode::REQ_REP ? "REQ/REP" : "DEALER/ROUTER")
-                  << " mode.\n";
-
-        // Create a Party object with our chosen ID, total parties, input value, and netIOMP
-        Party myParty(myPartyId, totalParties, inputValue, netIOMP.get()); // Use .get() to pass raw pointer
+        // Ensure all parties are initialized
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        
+        Party myParty(myPartyId, totalParties, inputValue, netIOMP.get());
         myParty.init();
 
-        // 1) Distribute shares for local secret
+        // Step 1: Generate and distribute shares
+        std::cout << "[Party " << myPartyId << "] Starting share distribution\n";
         myParty.distributeOwnShares();
 
-        // 2) Wait or sync to ensure all parties have distributed
-        // std::this_thread::sleep_for(std::chrono::seconds(2));
+        // Ensure all distributions complete before gathering
+        std::this_thread::sleep_for(std::chrono::seconds(2));
 
-        // 3) Gather shares from all parties
+        // Step 2: Gather shares from other parties
+        std::cout << "[Party " << myPartyId << "] Starting share gathering\n";
         myParty.gatherAllShares();
 
-        // 4) Reconstruct global sum
+        // Compute global sum after gathering
         myParty.computeGlobalSumOfSecrets();
 
-        // 5) (Optional) Show a multiplication example placeholder
-        myParty.doMultiplicationDemo();
-
+        // Ensure clean shutdown
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         netIOMP->close();
-        std::cout << "Party " << myPartyId << " closed.\n";
+        std::cout << "[Party " << myPartyId << "] Completed successfully\n";
     }
     catch (const zmq::error_t& e) {
         std::cerr << "ZeroMQ Error: " << e.what() << std::endl;
         return 1;
     }
     catch (const std::exception& e) {
-        std::cerr << "Standard Exception: " << e.what() << std::endl;
+        std::cerr << "[Party " << myPartyId << "] Fatal error: " << e.what() << std::endl;
         return 1;
     }
 

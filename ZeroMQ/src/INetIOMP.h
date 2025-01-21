@@ -28,6 +28,13 @@ public:
     virtual void sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length) = 0;
 
     /**
+     * @brief Sends binary data to all parties.
+     * @param data       Pointer to the binary data to send.
+     * @param length     Length of the binary data in bytes.
+     */
+    virtual void sendToAll(const void* data, LENGTH_T length) = 0;
+
+    /**
      * @brief Receives binary data from another party.
      * @param senderId   Output parameter to store the sender's party ID.
      * @param buffer     Pointer to the buffer to store received data.

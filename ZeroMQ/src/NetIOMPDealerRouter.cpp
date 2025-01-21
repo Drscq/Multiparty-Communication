@@ -43,8 +43,8 @@ void NetIOMPDealerRouter::init()
         auto dealerSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_DEALER);
         dealerSocket->set(zmq::sockopt::linger, linger);
 
-        // Set a unique identity for the DEALER socket
-        std::string identity = getIdentity(m_partyId);
+        // Set a unique identity for the DEALER socket by including target party ID
+        std::string identity = getIdentity(m_partyId) + "_to_" + std::to_string(pid);
         dealerSocket->set(zmq::sockopt::routing_id, identity);
 
         dealerSocket->connect(connectEndpoint);
@@ -64,6 +64,18 @@ void NetIOMPDealerRouter::sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T
 
     // Removed forced waiting for reply and retry logic
     m_dealerSockets[targetId]->send(dataMessage, zmq::send_flags::none);
+}
+
+void NetIOMPDealerRouter::sendToAll(const void* data, LENGTH_T length)
+{
+    for (const auto& [pid, sockPtr] : m_dealerSockets) {
+        try {
+            sendTo(pid, data, length);
+            std::cout << "[NetIOMPDealerRouter] Sent data to Party " << pid << "\n";
+        } catch (const std::exception& e) {
+            std::cerr << "[NetIOMPDealerRouter] Failed to send to Party " << pid << ": " << e.what() << "\n";
+        }
+    }
 }
 
 size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength)
@@ -89,8 +101,7 @@ size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T
     }
     senderId = static_cast<PARTY_ID_T>(std::stoi(routingId.substr(5)));
 
-    // Save the routingID for replies
-    m_lastRoutingId = routingId;
+    std::cout << "[NetIOMPDealerRouter] Message received from Party " << senderId << "\n";
 
     // Copy the data into the provided buffer
     size_t receivedLength = dataMsg.size();
