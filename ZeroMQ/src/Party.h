@@ -7,6 +7,8 @@
 #include <chrono>   // Add this for std::chrono
 #include "AdditiveSecretSharing.h" // incorporate big-int sharing
 #include <string> // Add this for string operations
+#include "config.h" // Include config.h for COUT macro
+#include "config.h" // Include config.h for ENABLE_COUT
 
 /**
  * @brief Represents an individual party in the MPC protocol.
@@ -21,7 +23,9 @@ public:
      */
     void init() {
         // Optionally do extra setup here
+        #ifdef ENABLE_COUT
         std::cout << "[Party " << m_partyId << "] init called.\n";
+        #endif
     }
 
     /**
@@ -31,9 +35,11 @@ public:
         for (int i = 1; i <= m_totalParties; ++i) {
             if (i != m_partyId) {
                 m_comm->sendTo(i, &m_localValue, sizeof(int));
+                #ifdef ENABLE_COUT
                 std::cout << "[Party " << m_partyId 
                           << "] Sent local value " << m_localValue 
                           << " to Party " << i << "\n";
+                #endif
             }
         }
     }
@@ -52,12 +58,16 @@ public:
             m_comm->receive(senderId, &receivedValue, sizeof(receivedValue));
             sum += receivedValue;
             receivedCount++;
+            #ifdef ENABLE_COUT
             std::cout << "[Party " << m_partyId 
                       << "] Received value " << receivedValue 
                       << " from Party " << senderId << "\n";
+            #endif
         }
+        #ifdef ENABLE_COUT
         std::cout << "[Party " << m_partyId 
                   << "] Computed total sum: " << sum << "\n";
+        #endif
         return sum;
     }
 
@@ -98,13 +108,23 @@ public:
     void doMultiplicationDemo();
 
     // Declare the new methods
-    void broadcastAllHeldShares();
-    void syncAfterDistribute();
-    void syncAfterGather();
+    void distributeSharesAndComputeMyPartial();
+    void broadcastAndReconstructGlobalSum();
+
+    // Comment out or remove old global-sharing methods
+    // void broadcastAllHeldShares();
+    // void gatherAllShares();
+    // void computeGlobalSumOfSecrets();
+    // void doMultiplicationDemo();
 
 private:
     PARTY_ID_T m_partyId;
     int m_totalParties;
     int m_localValue;
     INetIOMP* m_comm;
+    BIGNUM* m_myPartialSum = nullptr; // new field for partial sum
+
+    // Add declarations for sync methods
+    void syncAfterDistribute();
+    void syncAfterGather();
 };

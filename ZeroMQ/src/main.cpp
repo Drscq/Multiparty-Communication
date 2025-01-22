@@ -1,7 +1,7 @@
 #include "INetIOMP.h"
 #include <zmq.hpp> // For ZeroMQ
 #include "NetIOMPFactory.h"
-#include "config.h"
+#include "config.h" // Include config.h for COUT macro
 #include <iostream>
 #include <cstring>
 #include <cstdlib> // For std::atoi
@@ -21,6 +21,9 @@ int main(int argc, char* argv[])
     PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[2]));
     int totalParties = std::atoi(argv[3]);
     int inputValue = std::atoi(argv[4]);
+    #if defined(ENABLE_COUT)
+    std::cout << "[Party " << myPartyId << "] Starting with input value: " << inputValue << "\n";
+    #endif
 
     // Build the party info map dynamically
     std::map<PARTY_ID_T, std::pair<std::string, int>> partyInfo;
@@ -50,24 +53,16 @@ int main(int argc, char* argv[])
         Party myParty(myPartyId, totalParties, inputValue, netIOMP.get());
         myParty.init();
 
-        // Step 1: Generate and distribute shares
-        std::cout << "[Party " << myPartyId << "] Starting share distribution\n";
-        myParty.distributeOwnShares();
-
-        // Ensure all distributions complete before gathering
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-
-        // Step 2: Gather shares from other parties
-        std::cout << "[Party " << myPartyId << "] Starting share gathering\n";
-        myParty.gatherAllShares();
-
-        // Compute global sum after gathering
-        myParty.computeGlobalSumOfSecrets();
+        // New protocol flow:
+        myParty.distributeSharesAndComputeMyPartial();
+        myParty.broadcastAndReconstructGlobalSum();
 
         // Ensure clean shutdown
         std::this_thread::sleep_for(std::chrono::seconds(1));
         netIOMP->close();
-        std::cout << "[Party " << myPartyId << "] Completed successfully\n";
+        #if defined(ENABLE_COUT)
+        std::cout << "[Party " << myPartyId << "] Closed sockets.\n";
+        #endif
     }
     catch (const zmq::error_t& e) {
         std::cerr << "ZeroMQ Error: " << e.what() << std::endl;

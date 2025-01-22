@@ -19,4 +19,7 @@
 // #define PORT_T uint16_t
 // #define BUFFER_SIZE 256
 
+// Uncomment the following line to enable cout statements
+#define ENABLE_COUT
+
 #endif // CONFIG_H

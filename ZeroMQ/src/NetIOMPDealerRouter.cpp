@@ -73,7 +73,9 @@ void NetIOMPDealerRouter::sendToAll(const void* data, LENGTH_T length)
     for (const auto& [pid, sockPtr] : m_dealerSockets) {
         try {
             sendTo(pid, data, length);
+            #if defined(ENABLE_COUT)
             std::cout << "[NetIOMPDealerRouter] Sent data to Party " << pid << "\n";
+            #endif
         } catch (const std::exception& e) {
             std::cerr << "[NetIOMPDealerRouter] Failed to send to Party " << pid << ": " << e.what() << "\n";
         }
@@ -104,8 +106,9 @@ size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T
         throw std::runtime_error("[NetIOMPDealerRouter] Invalid routing ID format.");
     }
     senderId = static_cast<PARTY_ID_T>(std::stoi(routingId.substr(5)));
-
+    #if defined(ENABLE_COUT)
     std::cout << "[NetIOMPDealerRouter] Message received from Party " << senderId << "\n";
+    #endif
 
     // Copy the data into the provided buffer
     size_t receivedLength = dataMsg.size();

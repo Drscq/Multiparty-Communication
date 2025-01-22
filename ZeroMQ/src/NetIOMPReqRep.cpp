@@ -2,6 +2,7 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
+#include "config.h" // Include config.h for ENABLE_COUT
 
 NetIOMPReqRep::NetIOMPReqRep(PARTY_ID_T partyId,
                              const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo)
@@ -24,7 +25,9 @@ void NetIOMPReqRep::init()
     auto [myIp, myPort] = m_partyInfo.at(m_partyId);
     std::string bindEndpoint = "tcp://" + myIp + ":" + std::to_string(myPort);
 
+    #ifdef ENABLE_COUT
     std::cout << "Party " << m_partyId << " binding to " << bindEndpoint << "\n";
+    #endif
     m_repSocket->bind(bindEndpoint);
 
     // Setup REQ (client) sockets for all other parties
