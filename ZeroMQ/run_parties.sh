@@ -13,8 +13,8 @@ if [ $# -lt 1 ]; then
     usage
 fi
 
-MODE=$1
-NUM_PARTIES=${2:-3}  # Default to 3 parties if not specified
+MODE=${2:-dealerrouter}  # Default to dealerrouter if not specified
+NUM_PARTIES=${1:-3}  # Default to 3 parties if not specified
 
 if [ "$MODE" != "reqrep" ] && [ "$MODE" != "dealerrouter" ]; then
     echo "Invalid mode: $MODE"
