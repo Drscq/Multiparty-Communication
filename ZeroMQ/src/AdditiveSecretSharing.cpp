@@ -123,7 +123,6 @@ void AdditiveSecretSharing::multiplyShares(ShareType x, ShareType y,
     }
 
     // 3) Compute D * E
-
     BIGNUM* DE = newBigInt();
     if(!BN_mod_mul(DE, d, e, getPrime(), getCtx())) {
         BN_free(d);
@@ -134,7 +133,7 @@ void AdditiveSecretSharing::multiplyShares(ShareType x, ShareType y,
         throw std::runtime_error("BN_mod_mul failed for DE");
     }
 
-    // 4) Compute c + aE + bD + DE
+    // 4) Compute c + a * E + b * D + D * E
     if(!BN_mod_add(product, triple.c, aE, getPrime(), getCtx())) {
         throw std::runtime_error("BN_mod_add failed for c + aE");
     }
@@ -145,7 +144,7 @@ void AdditiveSecretSharing::multiplyShares(ShareType x, ShareType y,
         throw std::runtime_error("BN_mod_add failed for + DE");
     }
 
-    // Free temporary BIGNUMs
+    // 5) Free temporary BIGNUMs
     BN_free(d);
     BN_free(e);
     BN_free(aE);

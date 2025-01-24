@@ -11,8 +11,8 @@
 
 int main(int argc, char* argv[])
 {
-    if (argc < 5) {
-        std::cerr << "Usage: " << argv[0] << " <mode> <party_id> <num_parties> <input_value>" << std::endl;
+    if (argc < 7) {
+        std::cerr << "Usage: " << argv[0] << " <mode> <party_id> <num_parties> <input_value> <has_secret> <operation>\n";
         std::cerr << "Modes: reqrep, dealerrouter" << std::endl;
         return 1;
     }
@@ -21,9 +21,13 @@ int main(int argc, char* argv[])
     PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[2]));
     int totalParties = std::atoi(argv[3]);
     int inputValue = std::atoi(argv[4]);
-    #if defined(ENABLE_COUT)
-    std::cout << "[Party " << myPartyId << "] Starting with input value: " << inputValue << "\n";
-    #endif
+    int hasSecretFlag = std::atoi(argv[5]);
+    std::string operation = argv[6];
+    if (hasSecretFlag == 1) {
+        #if defined(ENABLE_COUT)
+        std::cout << "[Party " << myPartyId << "] Starting with input value: " << inputValue << "\n";
+        #endif
+    }
 
     // Build the party info map dynamically
     std::map<PARTY_ID_T, std::pair<std::string, int>> partyInfo;
@@ -31,6 +35,7 @@ int main(int argc, char* argv[])
     for (int i = 1; i <= totalParties; ++i) {
         partyInfo[static_cast<PARTY_ID_T>(i)] = {"127.0.0.1", basePort + i - 1};
     }
+    totalParties -= 2;
 
     // Determine the mode
     NetIOMPFactory::Mode mode;
@@ -50,16 +55,13 @@ int main(int argc, char* argv[])
         // Ensure all parties are initialized
         std::this_thread::sleep_for(std::chrono::seconds(2));
         
-        Party myParty(myPartyId, totalParties, inputValue, netIOMP.get());
+        Party myParty(myPartyId, totalParties, inputValue, netIOMP.get(), (hasSecretFlag == 1), operation);
         myParty.init();
 
-        // New protocol flow:
-        myParty.distributeSharesAndComputeMyPartial();
-        myParty.broadcastAndReconstructGlobalSum();
-
-        // Ensure clean shutdown
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        netIOMP->close();
+        if (hasSecretFlag == 1) {
+            //  Now close sockets
+            netIOMP->close();
+        }
         #if defined(ENABLE_COUT)
         std::cout << "[Party " << myPartyId << "] Closed sockets.\n";
         #endif

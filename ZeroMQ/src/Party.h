@@ -9,25 +9,24 @@
 #include <string> // Add this for string operations
 #include "config.h" // Include config.h for COUT macro
 #include "config.h" // Include config.h for ENABLE_COUT
+#include <openssl/bn.h> // Ensure BIGNUM is included
 
 /**
  * @brief Represents an individual party in the MPC protocol.
  */
+
 class Party {
 public:
-    Party(PARTY_ID_T id, int totalParties, int localValue, INetIOMP* comm)
-        : m_partyId(id), m_totalParties(totalParties), m_localValue(localValue), m_comm(comm) {}
+    Party(PARTY_ID_T id, int totalParties, int localValue, INetIOMP* comm,
+          bool hasSecret, const std::string& operation)
+        : m_partyId(id), m_totalParties(totalParties), m_localValue(localValue),
+          m_comm(comm), m_hasSecret(hasSecret), m_operation(operation) {}
 
     /**
      * @brief Initializes any necessary communication steps (already done in main usually).
      */
-    void init() {
-        // Optionally do extra setup here
-        #ifdef ENABLE_COUT
-        std::cout << "[Party " << m_partyId << "] init called.\n";
-        #endif
-    }
-
+    void init();
+    void broadcastAllData(const void* data, LENGTH_T length);
     /**
      * @brief Sends this party's local value to all other parties.
      */
@@ -104,8 +103,8 @@ public:
     // Reconstruct all secrets from the shares and compute global sum
     void computeGlobalSumOfSecrets();
 
-    // A placeholder for multi-party multiplication with beaver
-    void doMultiplicationDemo();
+    // // A placeholder for multi-party multiplication with beaver
+    // void doMultiplicationDemo();
 
     // Declare the new methods
     void distributeSharesAndComputeMyPartial();
@@ -117,6 +116,25 @@ public:
     // void computeGlobalSumOfSecrets();
     // void doMultiplicationDemo();
 
+    // A place to store the triple share we receive
+    BeaverTriple myTriple;
+
+    // Distribute a random triple [a], [b], [c=a*b] among all parties
+    void distributeBeaverTriple();
+
+    // Receive triple shares from the designated "dealer" or from each party
+    void receiveBeaverTriple();
+
+    // Perform a single “demo” multiply of (x,y) using the triple
+    // and reconstruct final product
+    void doMultiplicationDemo();
+
+    void someOtherFunction(); // Added declaration of someOtherFunction
+
+    // Add these two methods
+    void runEventLoop();
+    void handleMessage(PARTY_ID_T senderId, const std::string& msg);
+
 private:
     PARTY_ID_T m_partyId;
     int m_totalParties;
@@ -127,4 +145,16 @@ private:
     // Add declarations for sync methods
     void syncAfterDistribute();
     void syncAfterGather();
+
+    // For partial opening
+    BIGNUM* partialOpen(BIGNUM* share, BIGNUM* tripleShare);
+
+    // Helper to broadcast a single BN as hex
+    void broadcastBN(BIGNUM* bn);
+
+    // Helper to receive a single BN from one party
+    BIGNUM* receiveBN(PARTY_ID_T& sender);
+
+    bool m_hasSecret;              // Indicates if this party holds a secret
+    std::string m_operation;       // "add" or "mul"
 };

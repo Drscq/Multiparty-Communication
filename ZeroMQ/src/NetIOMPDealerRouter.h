@@ -24,11 +24,15 @@ public:
     ~NetIOMPDealerRouter() override;
 
 private:
+    zmq::context_t m_context;
+    zmq::socket_t m_routerSocket; // ROUTER socket
+    // Remove the single DEALER socket
+    // zmq::socket_t m_dealerSocket;
+
     PARTY_ID_T m_partyId;
     std::map<PARTY_ID_T, std::pair<std::string, int>> m_partyInfo;
 
-    zmq::context_t m_context;
-    std::unique_ptr<zmq::socket_t> m_routerSocket;
+    // Add DEALER sockets map
     std::map<PARTY_ID_T, std::unique_ptr<zmq::socket_t>> m_dealerSockets;
 
     // Helper method to construct identity string

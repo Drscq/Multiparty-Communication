@@ -56,17 +56,14 @@ public:
     static void addShares(const std::vector<ShareType>& inputShares, ShareType &result);
 
     /**
-     * @brief Multiplies two share values using Beaver Triples as a placeholder.
+     * @brief Multiplies two share values using Beaver Triples.
      * @param x A share value for secret X
      * @param y A share value for secret Y
-     * @param triple The Beaver triple (a, b, c) such that a*b=c. In practice,
-     *               each party holds a share of a, b, and c.
-     * @param product The result of (x * y) mod PRIME_MODULUS, if triple is used correctly
-     *
-     * NOTE: Full MPC multiplication with Beaver Triples requires offline
-     * distribution of triple shares. This function sketches the logic only.
+     * @param triple The Beaver triple (a, b, c)
+     * @param product The result of (x * y) mod PRIME_MODULUS
      */
-    static void multiplyShares(ShareType x, ShareType y, const BeaverTriple &triple, ShareType &product);
+    static void multiplyShares(ShareType x, ShareType y,
+                               const BeaverTriple &triple, ShareType &product);
 
     /**
      * @brief Creates and returns a new BIGNUM with value = 0.

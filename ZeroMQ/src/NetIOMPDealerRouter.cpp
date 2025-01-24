@@ -5,7 +5,11 @@
 
 NetIOMPDealerRouter::NetIOMPDealerRouter(PARTY_ID_T partyId,
                                          const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo)
-    : m_partyId(partyId), m_partyInfo(partyInfo), m_context(1)
+    // Reordered initializer list to match member declaration order: m_context, m_routerSocket, m_partyId, m_partyInfo
+    : m_context(1),
+      m_routerSocket(m_context, ZMQ_ROUTER),
+      m_partyId(partyId),          // Moved before m_partyInfo
+      m_partyInfo(partyInfo)
 {
     if (m_partyInfo.find(m_partyId) == m_partyInfo.end()) {
         throw std::runtime_error("[NetIOMPDealerRouter] Party ID not found in partyInfo map.");
@@ -20,19 +24,16 @@ std::string NetIOMPDealerRouter::getIdentity(PARTY_ID_T partyId)
 void NetIOMPDealerRouter::init()
 {
     // Setup the ROUTER (server) socket
-    m_routerSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_ROUTER);
-
-    // Set socket options
     int linger = 0;
-    m_routerSocket->set(zmq::sockopt::linger, linger);
+    m_routerSocket.set(zmq::sockopt::linger, linger);
     int rcvTimeout = 300; // ms
-    m_routerSocket->set(zmq::sockopt::rcvtimeo, rcvTimeout);
+    m_routerSocket.set(zmq::sockopt::rcvtimeo, rcvTimeout);
 
     auto [myIp, myPort] = m_partyInfo.at(m_partyId);
     std::string bindEndpoint = "tcp://" + myIp + ":" + std::to_string(myPort);
 
     std::cout << "Party " << m_partyId << " binding to " << bindEndpoint << "\n";
-    m_routerSocket->bind(bindEndpoint);
+    m_routerSocket.bind(bindEndpoint);
 
     // Setup DEALER (client) sockets for all other parties
     for (const auto& [pid, ipPort] : m_partyInfo) {
@@ -64,8 +65,11 @@ void NetIOMPDealerRouter::sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T
     zmq::message_t dataMessage(length);
     std::memcpy(dataMessage.data(), data, length);
 
-    // Removed forced waiting for reply and retry logic
     m_dealerSockets[targetId]->send(dataMessage, zmq::send_flags::none);
+
+    #ifdef ENABLE_COUT
+    std::cout << "[NetIOMPDealerRouter] Sent message to Party " << targetId << "\n";
+    #endif
 }
 
 void NetIOMPDealerRouter::sendToAll(const void* data, LENGTH_T length)
@@ -86,16 +90,16 @@ size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T
 {
     // 1) Attempt to receive routing ID frame with set timeout
     zmq::message_t routingIdMsg;
-    auto idRes = m_routerSocket->recv(routingIdMsg, zmq::recv_flags::none);
-    if (!idRes) {
+    auto idRes = m_routerSocket.recv(routingIdMsg, zmq::recv_flags::none);
+    if (!idRes.has_value()) {
         // No message arrived within the timeout
         return 0;
     }
 
     // 2) Attempt to receive data frame
     zmq::message_t dataMsg;
-    auto dataRes = m_routerSocket->recv(dataMsg, zmq::recv_flags::none);
-    if (!dataRes) {
+    auto dataRes = m_routerSocket.recv(dataMsg, zmq::recv_flags::none);
+    if (!dataRes.has_value()) {
         // No data arrived for the second frame
         return 0;
     }
@@ -131,8 +135,8 @@ void NetIOMPDealerRouter::reply(const void* data, LENGTH_T length)
     std::memcpy(replyMsg.data(), data, length);
 
     // Send multipart reply: [routing ID][reply data]
-    m_routerSocket->send(routingIdMsg, zmq::send_flags::sndmore);
-    m_routerSocket->send(replyMsg, zmq::send_flags::none);
+    m_routerSocket.send(routingIdMsg, zmq::send_flags::sndmore);
+    m_routerSocket.send(replyMsg, zmq::send_flags::none);
 }
 
 void NetIOMPDealerRouter::close()
@@ -141,16 +145,20 @@ void NetIOMPDealerRouter::close()
     int linger = 0;
 
     if (m_routerSocket) {
-        m_routerSocket->set(zmq::sockopt::linger, linger);
-        m_routerSocket->close();
-        m_routerSocket.reset();
+        m_routerSocket.set(zmq::sockopt::linger, linger);
+        m_routerSocket.close();
+        #ifdef ENABLE_COUT
+        std::cout << "[NetIOMPDealerRouter] Closed ROUTER socket.\n";
+        #endif
     }
 
     for (auto& [pid, sockPtr] : m_dealerSockets) {
         if (sockPtr) {
             sockPtr->set(zmq::sockopt::linger, linger);
             sockPtr->close();
-            sockPtr.reset();
+            #ifdef ENABLE_COUT
+            std::cout << "[NetIOMPDealerRouter] Closed DEALER socket for Party " << pid << ".\n";
+            #endif
         }
     }
 
