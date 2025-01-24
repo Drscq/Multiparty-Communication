@@ -15,20 +15,14 @@ void Party::init() {
     #ifdef ENABLE_COUT
     std::cout << "[Party " << m_partyId << "] init called.\n";
     #endif
-    if (m_hasSecret) {
-        // Generate shares (of secret = m_localValue) and distribute to all parties
-        // distributeOwnShares();
-        this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
-    } else {
-        // Be a server and keep listening from other parties
-        // while (true) {
-            // Receive command from other parties
-            CMD_T cmd;
-            m_comm->receive(m_partyId, &cmd, sizeof(CMD_T));
-            std::cout << "[Party " << m_partyId << "] Received command: " << (int)cmd << "\n";
+    // Removed logic:
+    // if (m_hasSecret) {
+    //     this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
+    // } else {
+    //     this->runEventLoop();
+    // }
 
-        // }
-    }
+    // Now party init is simpler, no direct broadcasting or looping.
 }
 
 void Party::broadcastAllData(const void* data, LENGTH_T length) {

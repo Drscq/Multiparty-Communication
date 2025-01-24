@@ -31,7 +31,7 @@ public:
      */
     static std::unique_ptr<INetIOMP> createNetIOMP(Mode mode,
                                                    PARTY_ID_T partyId,
-                                                   const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo);
+                                                   const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo, int totalParties);
 };
 
 #endif // NET_IOMP_FACTORY_H

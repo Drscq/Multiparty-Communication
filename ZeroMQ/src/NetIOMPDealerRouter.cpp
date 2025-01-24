@@ -4,12 +4,13 @@
 #include <thread>
 
 NetIOMPDealerRouter::NetIOMPDealerRouter(PARTY_ID_T partyId,
-                                         const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo)
+                                         const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo, int totalParties)
     // Reordered initializer list to match member declaration order: m_context, m_routerSocket, m_partyId, m_partyInfo
     : m_context(1),
       m_routerSocket(m_context, ZMQ_ROUTER),
       m_partyId(partyId),          // Moved before m_partyInfo
-      m_partyInfo(partyInfo)
+      m_partyInfo(partyInfo),
+      m_totalParties(totalParties)
 {
     if (m_partyInfo.find(m_partyId) == m_partyInfo.end()) {
         throw std::runtime_error("[NetIOMPDealerRouter] Party ID not found in partyInfo map.");
@@ -37,7 +38,7 @@ void NetIOMPDealerRouter::init()
 
     // Setup DEALER (client) sockets for all other parties
     for (const auto& [pid, ipPort] : m_partyInfo) {
-        if (pid == m_partyId)
+        if (pid == m_partyId || pid > m_totalParties)
             continue;
 
         auto [ip, port] = ipPort;

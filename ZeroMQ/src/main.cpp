@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     }
 
     try {
-        auto netIOMP = NetIOMPFactory::createNetIOMP(mode, myPartyId, partyInfo);
+        auto netIOMP = NetIOMPFactory::createNetIOMP(mode, myPartyId, partyInfo, totalParties);
         netIOMP->init();
 
         // Ensure all parties are initialized
@@ -58,10 +58,19 @@ int main(int argc, char* argv[])
         Party myParty(myPartyId, totalParties, inputValue, netIOMP.get(), (hasSecretFlag == 1), operation);
         myParty.init();
 
+        // New logic: if this party has a secret, just send commands;
+        // else keep listening for commands in the event loop.
         if (hasSecretFlag == 1) {
-            //  Now close sockets
+            // Example: send a command to the party without a secret
+            // myParty.broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
+            // Possibly sleep, then close
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+            netIOMP->close();
+        } else {
+            myParty.runEventLoop();
             netIOMP->close();
         }
+
         #if defined(ENABLE_COUT)
         std::cout << "[Party " << myPartyId << "] Closed sockets.\n";
         #endif
