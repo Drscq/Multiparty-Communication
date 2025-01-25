@@ -15,15 +15,30 @@ void Party::init() {
     #ifdef ENABLE_COUT
     std::cout << "[Party " << m_partyId << "] init called.\n";
     #endif
-    // if (m_hasSecret) {
-    //     this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
-    //     // wait 1 second for all parties to be ready
-    //     std::this_thread::sleep_for(std::chrono::seconds(1));
-    //     this->broadcastAllData(CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size());
-    // } else {
-    //     this->runEventLoop();
-    //     m_comm->close();
-    // }
+    if (m_hasSecret) {
+        this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
+        void* buffer = nullptr;
+        // Assign the space of size of CMD_SHUTDOWN to buffer
+        buffer = malloc(CMD_SHUTDOWN.size());
+        // Copy the CMD_SHUTDOWN to buffer
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            std::cout << "[Party " << m_partyId << "] Waiting for Party " << i << " to be ready.\n";
+            m_comm->dealerReceive(i, buffer, CMD_SHUTDOWN.size());
+            std::cout << "[Party " << m_partyId << "] Received from Party " << i << ": " << (char*)buffer << "\n";
+            if (std::memcmp(buffer, CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size()) == 0) {
+                std::cout << "[Party " << m_partyId << "] Received shutdown command.\n";
+                free(buffer);
+                m_comm->close();
+                return;
+            }
+        }
+        // wait 1 second for all parties to be ready
+        // std::this_thread::sleep_for(std::chrono::seconds(1));
+        // this->broadcastAllData(CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size());
+    } else {
+        this->runEventLoop();
+        // m_comm->close();
+    }
 
     // Now party init is simpler, no direct broadcasting or looping.
 }
@@ -611,16 +626,6 @@ void Party::doMultiplicationDemo()
 }
 // ...existing code...
 
-void Party::someOtherFunction()
-{
-    // ...existing code...
-
-    // Remove or comment out any unintended calls to distributeBeaverTriple()
-    // myParty.distributeBeaverTriple(); // <-- This should be removed or commented out
-
-    // ...existing code...
-}
-
 void Party::runEventLoop()
 {
     #ifdef ENABLE_COUT
@@ -634,8 +639,15 @@ void Party::runEventLoop()
         size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
 
         if (bytesRead > 0) {
+            #if defined(ENABLE_COUT)
             std::cout << "[Party " << m_partyId << "] Received message from Party " << senderId
                       << ": " << std::string(buffer, bytesRead) << "\n";
+            #endif
+            // launch a new thread to handle the message
+            std::thread([this, senderId, buffer, bytesRead]() {
+                handleMessage(senderId, buffer, bytesRead);
+            }).detach();
+            
         } else {
             std::cerr << "[Party " << m_partyId << "] Received empty message from Party "
                       << senderId << ".\n";
@@ -647,15 +659,15 @@ void Party::runEventLoop()
     #endif
 }
 
-void Party::handleMessage(PARTY_ID_T senderId, const std::string& msg)
-{
-    #ifdef ENABLE_COUT
-    std::cout << "[Party " << m_partyId << "] handleMessage from " << senderId
-              << " => " << msg << "\n";
-    #endif
-
-    std::cout << "[Party " << m_partyId << "] Received message from Party " << senderId
-              << ": " << msg << "\n";
+void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length){
+    // Convert data to CMD_T
+    CMD_T cmd;
+    std::memcpy(&cmd, data, length);
+    if (cmd == CMD_SEND_SHARES) {
+        std::cout << "[Party " << m_partyId << "] Received command to send shares from Party " 
+                  << senderId << "\n";
+        m_comm->reply(CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size());
+    }
 }
 
 // ...existing code...

@@ -128,11 +128,9 @@ public:
     // and reconstruct final product
     void doMultiplicationDemo();
 
-    void someOtherFunction(); // Added declaration of someOtherFunction
-
     // Add these two methods
     void runEventLoop();
-    void handleMessage(PARTY_ID_T senderId, const std::string& msg);
+    void handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length);
 
 private:
     PARTY_ID_T m_partyId;

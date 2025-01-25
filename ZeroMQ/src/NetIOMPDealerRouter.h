@@ -20,6 +20,7 @@ public:
     void initRouter(); // Add this method
     void sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length) override;
     size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength) override;
+    size_t dealerReceive(PARTY_ID_T& routerId, void* buffer, LENGTH_T maxLength) override; // Add this method
     void reply(const void* data, LENGTH_T length) override;
     void close() override;
     void sendToAll(const void* data, LENGTH_T length) override; // Ensure this is declared

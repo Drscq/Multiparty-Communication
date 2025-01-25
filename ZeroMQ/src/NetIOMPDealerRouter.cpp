@@ -141,6 +141,8 @@ size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T
 
     // Extract senderId from the routing ID
     std::string routingId = routingIdMsg.to_string();
+    // Store routingId for use in reply(...)
+    m_lastRoutingId = routingId;
     if (routingId.find("Party") != 0) {
         throw std::runtime_error("[NetIOMPDealerRouter] Invalid routing ID format.");
     }
@@ -156,6 +158,27 @@ size_t NetIOMPDealerRouter::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T
     }
     std::memcpy(buffer, dataMsg.data(), receivedLength);
 
+    return receivedLength;
+}
+
+size_t NetIOMPDealerRouter::dealerReceive(PARTY_ID_T& routerId, void* buffer, LENGTH_T maxLength) {
+   
+    // Make sure the dealer socket is valid
+    if (m_dealerSockets.find(routerId) == m_dealerSockets.end()) {
+        throw std::runtime_error("[NetIOMPDealerRouter] Invalid routerId or socket not initialized.");
+    }
+    zmq::message_t msg;
+    std::cout << "[NetIOMPDealerRouter] Receiving from DEALER socket...\n";
+    auto res = m_dealerSockets[routerId]->recv(msg, zmq::recv_flags::none);
+    if (!res.has_value()) {
+        return 0;
+    }
+    // Copy the data into the provided buffer
+    size_t receivedLength = msg.size();
+    if (receivedLength > maxLength) {
+        throw std::runtime_error("[NetIOMPDealerRouter] Buffer too small for received message.");
+    }
+    std::memcpy(buffer, msg.data(), receivedLength);
     return receivedLength;
 }
 

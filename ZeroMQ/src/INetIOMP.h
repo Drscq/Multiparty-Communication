@@ -49,6 +49,15 @@ public:
     virtual size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength) = 0;
 
     /**
+     * @brief Receives binary data from a DEALER socket.
+     * @param routerId   Output parameter to store the router's party ID.
+     * @param buffer     Pointer to the buffer to store received data.
+     * @param maxLength  Maximum length of the buffer.
+     * @return Size of the received data in bytes.
+     */
+    virtual size_t dealerReceive(PARTY_ID_T& routerId, void* buffer, LENGTH_T maxLength) = 0;
+
+    /**
      * @brief Replies with binary data to the last received message.
      * @param data       Pointer to the binary data to send as a reply.
      * @param length     Length of the binary data in bytes.

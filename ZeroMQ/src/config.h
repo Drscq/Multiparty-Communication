@@ -24,7 +24,7 @@
 #endif
 
 // Uncomment the following line to enable cout statements
-#define ENABLE_COUT
+// #define ENABLE_COUT
 
 #define CMD_T uint8_t
 const CMD_T CMD_SEND_SHARES = 0;
