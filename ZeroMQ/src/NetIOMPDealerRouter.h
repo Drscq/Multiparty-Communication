@@ -16,6 +16,8 @@ class NetIOMPDealerRouter : public INetIOMP
 public:
     NetIOMPDealerRouter(PARTY_ID_T partyId, const std::map<PARTY_ID_T, std::pair<std::string, int>>& partyInfo, int totalParties);
     void init() override;
+    void initDealers() override; // Add this method
+    void initRouter(); // Add this method
     void sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length) override;
     size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength) override;
     void reply(const void* data, LENGTH_T length) override;

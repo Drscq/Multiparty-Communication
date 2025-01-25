@@ -27,7 +27,7 @@ echo "Mode: $MODE, Operation: $OPERATION"
 
 # Clean ports
 PORTS=()
-for ((i=0; i<$TOTAL_PARTIES; i++)); do
+for ((i=0; i<$NUM_MPC_PARTIES; i++)); do
     PORTS+=($((5555 + i)))
 done
 
@@ -51,27 +51,28 @@ clean_ports() {
 echo "Cleaning specified ports..."
 clean_ports
 
-# # Start non-secret parties first
-# PIDS=()
-# for ((i=1; i<=$NUM_MPC_PARTIES; i++)); do
-#     INPUT_VALUE=$((i * 10))
-#     ./netiomp_test "$MODE" "$i" "$TOTAL_PARTIES" "$INPUT_VALUE" 0 "$OPERATION" &
-#     PIDS+=($!)
-#     sleep 1
-# done
+# Start non-secret parties first
+PIDS=()
+for ((i=1; i<=$NUM_MPC_PARTIES; i++)); do
+    INPUT_VALUE=$((i * 10))
+    ./netiomp_test "$MODE" "$i" "$NUM_MPC_PARTIES" "$INPUT_VALUE" 0 "$OPERATION" &
+    PIDS+=($!)
+    sleep 1
+done
 
-# # Now launch the secret parties
-# SECRET_PARTY_1=$((NUM_MPC_PARTIES + 1))
-# SECRET_PARTY_2=$((NUM_MPC_PARTIES + 2))
+sleep 4
+# Now launch the secret parties
+SECRET_PARTY_1=$((NUM_MPC_PARTIES + 1))
+SECRET_PARTY_2=$((NUM_MPC_PARTIES + 2))
 
-# for sp in $SECRET_PARTY_1 $SECRET_PARTY_2; do
-#     INPUT_VALUE=$((sp * 10))
-#     ./netiomp_test "$MODE" "$sp" "$TOTAL_PARTIES" "$INPUT_VALUE" 1 "$OPERATION" &
-#     PIDS+=($!)
-#     sleep 1
-# done
+for sp in $SECRET_PARTY_1 $SECRET_PARTY_2; do
+    INPUT_VALUE=$((sp * 10))
+    ./netiomp_test "$MODE" "$sp" "$NUM_MPC_PARTIES" "$INPUT_VALUE" 1 "$OPERATION" &
+    PIDS+=($!)
+    sleep 1
+done
 
-# # Wait for all parties to finish
-# for pid in "${PIDS[@]}"; do
-#     wait $pid
-# done
+# Wait for all parties to finish
+for pid in "${PIDS[@]}"; do
+    wait $pid
+done

@@ -8,7 +8,6 @@
 #include "AdditiveSecretSharing.h" // incorporate big-int sharing
 #include <string> // Add this for string operations
 #include "config.h" // Include config.h for COUT macro
-#include "config.h" // Include config.h for ENABLE_COUT
 #include <openssl/bn.h> // Ensure BIGNUM is included
 
 /**

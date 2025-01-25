@@ -15,18 +15,21 @@ void Party::init() {
     #ifdef ENABLE_COUT
     std::cout << "[Party " << m_partyId << "] init called.\n";
     #endif
-    // Removed logic:
     // if (m_hasSecret) {
     //     this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
+    //     // wait 1 second for all parties to be ready
+    //     std::this_thread::sleep_for(std::chrono::seconds(1));
+    //     this->broadcastAllData(CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size());
     // } else {
     //     this->runEventLoop();
+    //     m_comm->close();
     // }
 
     // Now party init is simpler, no direct broadcasting or looping.
 }
 
 void Party::broadcastAllData(const void* data, LENGTH_T length) {
-    for (int i = 1; i < m_totalParties; ++i) {
+    for (int i = 1; i <= m_totalParties; ++i) {
         m_comm->sendTo(i, data, length);
     }
 }
@@ -618,48 +621,6 @@ void Party::someOtherFunction()
     // ...existing code...
 }
 
-// ...existing code...
-
-// Party::Party(PARTY_ID_T partyId, int totalParties, int localValue, INetIOMP* comm,
-//              bool hasSecret, const std::string& operation)
-//     : m_partyId(partyId),
-//       m_totalParties(totalParties),
-//       m_localValue(localValue),
-//       m_comm(comm),
-//       m_hasSecret(hasSecret),
-//       m_operation(operation)
-// {
-//     // ...existing constructor logic...
-// }
-
-// // Example: unify addition / multiplication in a new method:
-// void Party::doOperationDemo()
-// {
-//     if (m_hasSecret) {
-//         // Generate shares (of secret = m_localValue) and distribute to all parties
-//         // ... code to generate X shares ...
-//         // ... broadcast X shares ...
-//     } else {
-//         // Receive shares from the secret holders
-//         // ... code to receive X shares ...
-//     }
-
-//     // Sync across parties (e.g. syncAfterDistribute())
-
-//     if (m_operation == "add") {
-//         // Each party locally sums the X shares received from the two secret holders
-//         // ... addition logic ...
-//     } else if (m_operation == "mul") {
-//         // Each party locally multiplies the shares from the two secret holders
-//         // possibly leveraging Beaver triple, if appropriate
-//         // ... multiplication logic ...
-//     }
-
-//     // (Optional) reconstruct final result or keep it in share form
-// }
-
-// ...existing code...
-
 void Party::runEventLoop()
 {
     #ifdef ENABLE_COUT
@@ -673,15 +634,8 @@ void Party::runEventLoop()
         size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
 
         if (bytesRead > 0) {
-            std::string msg(buffer, bytesRead);
-            if (msg == "SHUTDOWN") {
-                #ifdef ENABLE_COUT
-                std::cout << "[Party " << m_partyId << "] Received SHUTDOWN command.\n";
-                #endif
-                running = false;
-            } else {
-                handleMessage(senderId, msg);
-            }
+            std::cout << "[Party " << m_partyId << "] Received message from Party " << senderId
+                      << ": " << std::string(buffer, bytesRead) << "\n";
         } else {
             std::cerr << "[Party " << m_partyId << "] Received empty message from Party "
                       << senderId << ".\n";
@@ -700,18 +654,8 @@ void Party::handleMessage(PARTY_ID_T senderId, const std::string& msg)
               << " => " << msg << "\n";
     #endif
 
-    // Example dispatch logic:
-    if (msg.rfind("SHARES:", 0) == 0) {
-        // ... code to parse and handle share data ...
-    }
-    else if (msg.rfind("BEAVER_TRIPLE:", 0) == 0) {
-        // ... code to parse and handle Beaver triple ...
-    }
-    else {
-        #ifdef ENABLE_COUT
-        std::cout << "[Party " << m_partyId << "] Unknown or unhandled message type.\n";
-        #endif
-    }
+    std::cout << "[Party " << m_partyId << "] Received message from Party " << senderId
+              << ": " << msg << "\n";
 }
 
 // ...existing code...

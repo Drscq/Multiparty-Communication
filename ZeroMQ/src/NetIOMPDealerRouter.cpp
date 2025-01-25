@@ -12,9 +12,9 @@ NetIOMPDealerRouter::NetIOMPDealerRouter(PARTY_ID_T partyId,
       m_partyInfo(partyInfo),
       m_totalParties(totalParties)
 {
-    if (m_partyInfo.find(m_partyId) == m_partyInfo.end()) {
-        throw std::runtime_error("[NetIOMPDealerRouter] Party ID not found in partyInfo map.");
-    }
+    // if (m_partyInfo.find(m_partyId) == m_partyInfo.end()) {
+    //     throw std::runtime_error("[NetIOMPDealerRouter] Party ID not found in partyInfo map.");
+    // }
 }
 
 std::string NetIOMPDealerRouter::getIdentity(PARTY_ID_T partyId)
@@ -27,8 +27,8 @@ void NetIOMPDealerRouter::init()
     // Setup the ROUTER (server) socket
     int linger = 0;
     m_routerSocket.set(zmq::sockopt::linger, linger);
-    int rcvTimeout = 300; // ms
-    m_routerSocket.set(zmq::sockopt::rcvtimeo, rcvTimeout);
+    // int rcvTimeout = 300; // ms
+    // m_routerSocket.set(zmq::sockopt::rcvtimeo, rcvTimeout);
 
     auto [myIp, myPort] = m_partyInfo.at(m_partyId);
     std::string bindEndpoint = "tcp://" + myIp + ":" + std::to_string(myPort);
@@ -37,6 +37,40 @@ void NetIOMPDealerRouter::init()
     m_routerSocket.bind(bindEndpoint);
 
     // Setup DEALER (client) sockets for all other parties
+    for (const auto& [pid, ipPort] : m_partyInfo) {
+        if (pid == m_partyId || pid > m_totalParties)
+            continue;
+
+        auto [ip, port] = ipPort;
+        std::string connectEndpoint = "tcp://" + ip + ":" + std::to_string(port);
+
+        auto dealerSocket = std::make_unique<zmq::socket_t>(m_context, ZMQ_DEALER);
+        dealerSocket->set(zmq::sockopt::linger, linger);
+
+        // Set a unique identity for the DEALER socket by including target party ID
+        std::string identity = getIdentity(m_partyId) + "_to_" + std::to_string(pid);
+        dealerSocket->set(zmq::sockopt::routing_id, identity);
+
+        dealerSocket->connect(connectEndpoint);
+
+        m_dealerSockets[pid] = std::move(dealerSocket);
+    }
+}
+
+void NetIOMPDealerRouter::initRouter() {
+    // Setup the ROUTER (server) socket
+    int linger = 0;
+    m_routerSocket.set(zmq::sockopt::linger, linger);
+    // Bind to our Party's endpoint
+    auto [myIp, myPort] = m_partyInfo.at(m_partyId);
+    std::string bindEndpoint = "tcp://" + myIp + ":" + std::to_string(myPort);
+    std::cout << "Party " << m_partyId << " binding to " << bindEndpoint << "\n";
+    m_routerSocket.bind(bindEndpoint);
+}
+
+void NetIOMPDealerRouter::initDealers() {
+    // Setup DEALER (client) sockets for all other parties
+    int linger = 0;
     for (const auto& [pid, ipPort] : m_partyInfo) {
         if (pid == m_partyId || pid > m_totalParties)
             continue;

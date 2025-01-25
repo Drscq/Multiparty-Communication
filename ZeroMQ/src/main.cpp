@@ -35,7 +35,6 @@ int main(int argc, char* argv[])
     for (int i = 1; i <= totalParties; ++i) {
         partyInfo[static_cast<PARTY_ID_T>(i)] = {"127.0.0.1", basePort + i - 1};
     }
-    totalParties -= 2;
 
     // Determine the mode
     NetIOMPFactory::Mode mode;
@@ -50,7 +49,11 @@ int main(int argc, char* argv[])
 
     try {
         auto netIOMP = NetIOMPFactory::createNetIOMP(mode, myPartyId, partyInfo, totalParties);
-        netIOMP->init();
+        if (hasSecretFlag) {
+            netIOMP->initDealers();
+        } else {
+            netIOMP->init();
+        }
 
         // Ensure all parties are initialized
         std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -58,17 +61,13 @@ int main(int argc, char* argv[])
         Party myParty(myPartyId, totalParties, inputValue, netIOMP.get(), (hasSecretFlag == 1), operation);
         myParty.init();
 
-        // New logic: if this party has a secret, just send commands;
-        // else keep listening for commands in the event loop.
         if (hasSecretFlag == 1) {
-            // Example: send a command to the party without a secret
-            // myParty.broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
-            // Possibly sleep, then close
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-            netIOMP->close();
+            // Give ZeroMQ time to flush outbound messages
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // netIOMP->close();
         } else {
-            myParty.runEventLoop();
-            netIOMP->close();
+            // myParty.runEventLoop(); 
+            // netIOMP->close();
         }
 
         #if defined(ENABLE_COUT)

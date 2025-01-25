@@ -20,6 +20,11 @@ public:
     virtual void init() = 0;
 
     /**
+     * @brief Initializes the DEALER sockets for all other parties.
+     */
+    virtual void initDealers() = 0;
+
+    /**
      * @brief Sends binary data to a specific party.
      * @param targetId   The party ID to which we want to send data.
      * @param data       Pointer to the binary data to send.
