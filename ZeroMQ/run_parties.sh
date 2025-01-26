@@ -19,10 +19,10 @@ NUM_MPC_PARTIES=${1:-3}  # Default to 3 parties if not specified
 MODE=${2:-dealerrouter}  # Default to dealerrouter if not specified
 OPERATION=${3:-add}  # Default operation is "add" if not specified
 
-# The total parties = MPC parties + 2 secret parties
-TOTAL_PARTIES=$((NUM_MPC_PARTIES + 2))
+# The total parties = MPC parties + 1 secret parties
+TOTAL_PARTIES=$((NUM_MPC_PARTIES + 1))
 
-echo "Launching $NUM_MPC_PARTIES MPC parties + 2 secret parties = $TOTAL_PARTIES total."
+echo "Launching $NUM_MPC_PARTIES MPC parties + 1 secret parties = $TOTAL_PARTIES total."
 echo "Mode: $MODE, Operation: $OPERATION"
 
 # Clean ports
@@ -63,9 +63,9 @@ done
 sleep 4
 # Now launch the secret parties
 SECRET_PARTY_1=$((NUM_MPC_PARTIES + 1))
-SECRET_PARTY_2=$((NUM_MPC_PARTIES + 2))
+# SECRET_PARTY_2=$((NUM_MPC_PARTIES + 2))
 
-for sp in $SECRET_PARTY_1 $SECRET_PARTY_2; do
+for sp in $SECRET_PARTY_1; do
     INPUT_VALUE=$((sp * 10))
     ./netiomp_test "$MODE" "$sp" "$NUM_MPC_PARTIES" "$INPUT_VALUE" 1 "$OPERATION" &
     PIDS+=($!)

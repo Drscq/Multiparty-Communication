@@ -24,9 +24,9 @@ int main(int argc, char* argv[])
     int hasSecretFlag = std::atoi(argv[5]);
     std::string operation = argv[6];
     if (hasSecretFlag == 1) {
-        #if defined(ENABLE_COUT)
+        // #if defined(ENABLE_COUT)
         std::cout << "[Party " << myPartyId << "] Starting with input value: " << inputValue << "\n";
-        #endif
+        // #endif
     }
 
     // Build the party info map dynamically
@@ -60,15 +60,6 @@ int main(int argc, char* argv[])
         
         Party myParty(myPartyId, totalParties, inputValue, netIOMP.get(), (hasSecretFlag == 1), operation);
         myParty.init();
-
-        if (hasSecretFlag == 1) {
-            // Give ZeroMQ time to flush outbound messages
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            // netIOMP->close();
-        } else {
-            // myParty.runEventLoop(); 
-            // netIOMP->close();
-        }
 
         #if defined(ENABLE_COUT)
         std::cout << "[Party " << myPartyId << "] Closed sockets.\n";

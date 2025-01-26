@@ -26,6 +26,7 @@ public:
      */
     void init();
     void broadcastAllData(const void* data, LENGTH_T length);
+    void receiveAllData(void* data, LENGTH_T length);
     /**
      * @brief Sends this party's local value to all other parties.
      */
@@ -154,4 +155,5 @@ private:
 
     bool m_hasSecret;              // Indicates if this party holds a secret
     std::string m_operation;       // "add" or "mul"
+    CMD_T m_cmd;
 };

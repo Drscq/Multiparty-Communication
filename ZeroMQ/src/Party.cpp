@@ -17,35 +17,41 @@ void Party::init() {
     #endif
     if (m_hasSecret) {
         this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
-        void* buffer = nullptr;
-        // Assign the space of size of CMD_SHUTDOWN to buffer
-        buffer = malloc(CMD_SHUTDOWN.size());
-        // Copy the CMD_SHUTDOWN to buffer
         for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-            std::cout << "[Party " << m_partyId << "] Waiting for Party " << i << " to be ready.\n";
-            m_comm->dealerReceive(i, buffer, CMD_SHUTDOWN.size());
-            std::cout << "[Party " << m_partyId << "] Received from Party " << i << ": " << (char*)buffer << "\n";
-            if (std::memcmp(buffer, CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size()) == 0) {
-                std::cout << "[Party " << m_partyId << "] Received shutdown command.\n";
-                free(buffer);
-                m_comm->close();
-                return;
+            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
+            if (m_cmd == CMD_SUCCESS) {
+                std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
             }
         }
-        // wait 1 second for all parties to be ready
-        // std::this_thread::sleep_for(std::chrono::seconds(1));
-        // this->broadcastAllData(CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size());
+        
+        // void* buffer = nullptr;
+        // // Assign the space of size of CMD_SHUTDOWN to buffer
+        // buffer = malloc(CMD_SHUTDOWN.size());
+        // // Copy the CMD_SHUTDOWN to buffer
+        // for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+        //     std::cout << "[Party " << m_partyId << "] Waiting for Party " << i << " to be ready.\n";
+        //     m_comm->dealerReceive(i, buffer, CMD_SHUTDOWN.size());
+        //     std::cout << "[Party " << m_partyId << "] Received from Party " << i << ": " << (char*)buffer << "\n";
+        //     if (std::memcmp(buffer, CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size()) == 0) {
+        //         std::cout << "[Party " << m_partyId << "] Received shutdown command.\n";
+        //     }
+        // }
+        // free(buffer);
     } else {
         this->runEventLoop();
-        // m_comm->close();
     }
 
     // Now party init is simpler, no direct broadcasting or looping.
 }
 
 void Party::broadcastAllData(const void* data, LENGTH_T length) {
-    for (int i = 1; i <= m_totalParties; ++i) {
+    for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
         m_comm->sendTo(i, data, length);
+    }
+}
+void Party::receiveAllData(void* data, LENGTH_T length) {
+    for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+        m_comm->dealerReceive(i, data, length);
     }
 }
 
@@ -666,7 +672,7 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
     if (cmd == CMD_SEND_SHARES) {
         std::cout << "[Party " << m_partyId << "] Received command to send shares from Party " 
                   << senderId << "\n";
-        m_comm->reply(CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size());
+        m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
     }
 }
 

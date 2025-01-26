@@ -168,7 +168,9 @@ size_t NetIOMPDealerRouter::dealerReceive(PARTY_ID_T& routerId, void* buffer, LE
         throw std::runtime_error("[NetIOMPDealerRouter] Invalid routerId or socket not initialized.");
     }
     zmq::message_t msg;
+    #if defined(ENABLE_COUT)
     std::cout << "[NetIOMPDealerRouter] Receiving from DEALER socket...\n";
+    #endif
     auto res = m_dealerSockets[routerId]->recv(msg, zmq::recv_flags::none);
     if (!res.has_value()) {
         return 0;

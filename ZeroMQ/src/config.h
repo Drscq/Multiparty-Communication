@@ -28,6 +28,7 @@
 
 #define CMD_T uint8_t
 const CMD_T CMD_SEND_SHARES = 0;
+const CMD_T CMD_SUCCESS = 1;
 const std::string CMD_SHUTDOWN = "SHUTDOWN";
 
 #endif // CONFIG_H
