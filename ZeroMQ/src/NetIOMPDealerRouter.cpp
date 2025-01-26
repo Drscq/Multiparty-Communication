@@ -27,8 +27,8 @@ void NetIOMPDealerRouter::init()
     // Setup the ROUTER (server) socket
     int linger = 0;
     m_routerSocket.set(zmq::sockopt::linger, linger);
-    // int rcvTimeout = 300; // ms
-    // m_routerSocket.set(zmq::sockopt::rcvtimeo, rcvTimeout);
+    int rcvTimeout = 300; // ms
+    m_routerSocket.set(zmq::sockopt::rcvtimeo, rcvTimeout);
 
     auto [myIp, myPort] = m_partyInfo.at(m_partyId);
     std::string bindEndpoint = "tcp://" + myIp + ":" + std::to_string(myPort);

@@ -46,6 +46,11 @@ void NetIOMPReqRep::init()
     }
 }
 
+void NetIOMPReqRep::initDealers() {
+    // For Req/Rep, we might not need specialized "dealers"
+    // Add additional logic if needed
+}
+
 void NetIOMPReqRep::sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length)
 {
     if (m_reqSockets.find(targetId) == m_reqSockets.end()) {
@@ -129,6 +134,11 @@ size_t NetIOMPReqRep::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLe
 
     std::memcpy(buffer, dataMessage.data(), receivedLength);
     return receivedLength;
+}
+
+size_t NetIOMPReqRep::dealerReceive(PARTY_ID_T& routerId, void* buffer, LENGTH_T maxLength) {
+    // Reuse the existing receive method
+    return receive(routerId, buffer, maxLength);
 }
 
 void NetIOMPReqRep::reply(const void* data, LENGTH_T length)

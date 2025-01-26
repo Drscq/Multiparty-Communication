@@ -2,6 +2,7 @@
 #include "INetIOMP.h"
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <iostream>
 #include <thread>   // Add this for std::this_thread
 #include <chrono>   // Add this for std::chrono
@@ -133,6 +134,9 @@ public:
     void runEventLoop();
     void handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length);
 
+    void generateMyShares(const std::vector<ShareType> &secretValues,
+                          std::unordered_map<ShareType, std::vector<ShareType>> &secretSharesMap);
+
 private:
     PARTY_ID_T m_partyId;
     int m_totalParties;
@@ -156,4 +160,5 @@ private:
     bool m_hasSecret;              // Indicates if this party holds a secret
     std::string m_operation;       // "add" or "mul"
     CMD_T m_cmd;
+    bool m_running = true;
 };

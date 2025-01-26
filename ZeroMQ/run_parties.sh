@@ -6,7 +6,7 @@ usage() {
     echo "Modes: reqrep, dealerrouter (default: dealerrouter)"
     echo "Default number of MPC parties: 3"
     echo "Default operation: add"
-    echo "We automatically create two additional parties (IDs = NUM_PARTIES+1, NUM_PARTIES+2) holding secrets."
+    echo "We automatically create one additional parties (IDs = NUM_PARTIES+1) holding secrets."
     exit 1
 }
 
@@ -60,10 +60,9 @@ for ((i=1; i<=$NUM_MPC_PARTIES; i++)); do
     sleep 1
 done
 
-sleep 4
+sleep 1
 # Now launch the secret parties
 SECRET_PARTY_1=$((NUM_MPC_PARTIES + 1))
-# SECRET_PARTY_2=$((NUM_MPC_PARTIES + 2))
 
 for sp in $SECRET_PARTY_1; do
     INPUT_VALUE=$((sp * 10))

@@ -17,26 +17,35 @@ void Party::init() {
     #endif
     if (m_hasSecret) {
         this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
+        // Prepare the ShareType secrets for this party by initialing two secrets into the ShareType array
+        std::vector<ShareType> secrets;
+        for (int i = 0; i < 2; ++i) {
+            BIGNUM* secret_share_type = AdditiveSecretSharing::newBigInt();
+            BN_set_word(secret_share_type, m_localValue);
+            secrets.push_back(secret_share_type);
+            #if defined(ENABLE_COUT)
+            std::cout << "[Party " << m_partyId << "] Secret share type value: " << BN_bn2dec(secret_share_type) << "\n";
+            #endif
+        }
+        // Generate shares for the secrets
+        std::unordered_map<ShareType, std::vector<ShareType>> shares;
+        this->generateMyShares(secrets, shares);
+        #if defined(ENABLE_UNIT_TEST)
+        // Cout the Shares 
+        for (auto &secret : shares) {
+            std::cout << "[Party " << m_partyId << "] Shares for secret " << BN_bn2dec(secret.first) << ":\n";
+            for (auto &share : secret.second) {
+                std::cout << "  " << BN_bn2dec(share) << "\n";
+            }
+        }
+        #endif
         for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
             m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
             if (m_cmd == CMD_SUCCESS) {
                 std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
             }
         }
-        
-        // void* buffer = nullptr;
-        // // Assign the space of size of CMD_SHUTDOWN to buffer
-        // buffer = malloc(CMD_SHUTDOWN.size());
-        // // Copy the CMD_SHUTDOWN to buffer
-        // for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-        //     std::cout << "[Party " << m_partyId << "] Waiting for Party " << i << " to be ready.\n";
-        //     m_comm->dealerReceive(i, buffer, CMD_SHUTDOWN.size());
-        //     std::cout << "[Party " << m_partyId << "] Received from Party " << i << ": " << (char*)buffer << "\n";
-        //     if (std::memcmp(buffer, CMD_SHUTDOWN.c_str(), CMD_SHUTDOWN.size()) == 0) {
-        //         std::cout << "[Party " << m_partyId << "] Received shutdown command.\n";
-        //     }
-        // }
-        // free(buffer);
+        this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {
         this->runEventLoop();
     }
@@ -638,8 +647,7 @@ void Party::runEventLoop()
     std::cout << "[Party " << m_partyId << "] Starting event loop.\n";
     #endif
 
-    bool running = true;
-    while (running) {
+    while (m_running) {
         PARTY_ID_T senderId;
         char buffer[BUFFER_SIZE];
         size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
@@ -655,10 +663,13 @@ void Party::runEventLoop()
             }).detach();
             
         } else {
-            std::cerr << "[Party " << m_partyId << "] Received empty message from Party "
-                      << senderId << ".\n";
+            // std::cerr << "[Party " << m_partyId << "] Received empty message from Party "
+            //           << senderId << ".\n";
         }
     }
+
+    // Use the interface's close method instead of just calling destructor
+    // m_comm->close();
 
     #ifdef ENABLE_COUT
     std::cout << "[Party " << m_partyId << "] Event loop stopping.\n";
@@ -674,6 +685,43 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
                   << senderId << "\n";
         m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
     }
+    else if (cmd == CMD_SHUTDOWN) {
+        std::cout << "[Party " << m_partyId << "] Received shutdown command from Party " 
+                  << senderId << "\n";
+        m_running = false;
+    }
+}
+
+// ...existing code...
+
+void Party::generateMyShares(const std::vector<ShareType> &secretValues,
+                             std::unordered_map<ShareType, std::vector<ShareType>> &secretSharesMap){
+    #if defined(ENABLE_UNIT_TESTS)
+    BIGNUM* reconstructed;
+    #endif // ENABLE_UNIT_TESTS
+    for (ShareType secretBN : secretValues) {
+        if (!secretBN) throw std::runtime_error("Secret ShareType is null.");
+
+        // Generate shares
+        std::vector<ShareType> shares;
+        AdditiveSecretSharing::generateShares(secretBN, m_totalParties, shares);
+        // Test the correctness of the shares by reconstructing the secret
+        #if defined(ENABLE_UNIT_TESTS)
+        AdditiveSecretSharing::reconstructSecret(shares, reconstructed);
+        std::cout << "[Party " << m_partyId << "] Reconstruction test for secret " 
+                  << BN_bn2dec(secretBN) << ": " << BN_bn2dec(reconstructed) << "\n";
+        #endif
+
+        // Store them in the map
+        secretSharesMap[secretBN] = std::move(shares);
+
+        #ifdef ENABLE_COUT
+        std::cout << "[Party " << m_partyId << "] Generated shares for one ShareType secret\n";
+        #endif
+    }
+    #if defined(ENABLE_UNIT_TESTS)
+    BN_free(reconstructed);
+    #endif // ENABLE_UNIT_TESTS
 }
 
 // ...existing code...

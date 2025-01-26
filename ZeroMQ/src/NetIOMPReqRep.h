@@ -20,6 +20,8 @@ public:
     void reply(const void* data, LENGTH_T length) override;
     void close() override;
     void sendToAll(const void* data, LENGTH_T length) override;
+    virtual void initDealers() override;
+    virtual size_t dealerReceive(PARTY_ID_T& routerId, void* buffer, LENGTH_T maxLength) override;
     ~NetIOMPReqRep() override;
 
 private:
