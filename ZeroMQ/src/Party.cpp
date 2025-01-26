@@ -8,61 +8,7 @@
 #include <iomanip>
 #include "config.h" // Include config.h for ENABLE_COUT
 
-#define BUFFER_SIZE 1024  // Added definition for BUFFER_SIZE
-
-void Party::init() {
-    // Optionally do extra setup here
-    #ifdef ENABLE_COUT
-    std::cout << "[Party " << m_partyId << "] init called.\n";
-    #endif
-    if (m_hasSecret) {
-        this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
-        // Prepare the ShareType secrets for this party by initialing two secrets into the ShareType array
-        std::vector<ShareType> secrets;
-        for (int i = 0; i < 2; ++i) {
-            BIGNUM* secret_share_type = AdditiveSecretSharing::newBigInt();
-            BN_set_word(secret_share_type, m_localValue);
-            secrets.push_back(secret_share_type);
-            #if defined(ENABLE_COUT)
-            std::cout << "[Party " << m_partyId << "] Secret share type value: " << BN_bn2dec(secret_share_type) << "\n";
-            #endif
-        }
-        // Generate shares for the secrets
-        std::unordered_map<ShareType, std::vector<ShareType>> shares;
-        this->generateMyShares(secrets, shares);
-        #if defined(ENABLE_UNIT_TEST)
-        // Cout the Shares 
-        for (auto &secret : shares) {
-            std::cout << "[Party " << m_partyId << "] Shares for secret " << BN_bn2dec(secret.first) << ":\n";
-            for (auto &share : secret.second) {
-                std::cout << "  " << BN_bn2dec(share) << "\n";
-            }
-        }
-        #endif
-        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
-            if (m_cmd == CMD_SUCCESS) {
-                std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
-            }
-        }
-        this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
-    } else {
-        this->runEventLoop();
-    }
-
-    // Now party init is simpler, no direct broadcasting or looping.
-}
-
-void Party::broadcastAllData(const void* data, LENGTH_T length) {
-    for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-        m_comm->sendTo(i, data, length);
-    }
-}
-void Party::receiveAllData(void* data, LENGTH_T length) {
-    for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-        m_comm->dealerReceive(i, data, length);
-    }
-}
+#define BUFFER_SIZE (1024 * 100)  // 100 KB buffer
 
 // Helper function to serialize BIGNUM to hexadecimal string
 std::string serializeShare(ShareType share) {
@@ -89,6 +35,86 @@ ShareType deserializeShare(const std::string& data) {
         throw std::runtime_error("Failed to deserialize share from hex.");
     }
     return bn;
+}
+
+void Party::init() {
+    // Optionally do extra setup here
+    #ifdef ENABLE_COUT
+    std::cout << "[Party " << m_partyId << "] init called.\n";
+    #endif
+    if (m_hasSecret) {
+        this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
+        // Prepare the ShareType secrets for this party by initialing two secrets into the ShareType array
+        std::vector<ShareType> secrets;
+        for (int i = 0; i < 2; ++i) {
+            BIGNUM* secret_share_type = AdditiveSecretSharing::newBigInt();
+            BN_set_word(secret_share_type, m_localValue);
+            secrets.push_back(secret_share_type);
+            #if defined(ENABLE_COUT)
+            std::cout << "[Party " << m_partyId << "] Secret share type value: " << BN_bn2dec(secret_share_type) << "\n";
+            #endif
+        }
+        // Generate shares for the secrets
+        std::unordered_map<ShareType, std::vector<ShareType>> shares;
+        this->generateMyShares(secrets, shares);
+        #if defined(ENABLE_UNIT_TESTS)
+        // Cout the Shares 
+        for (auto &secret : shares) {
+            std::cout << "[Party " << m_partyId << "] Shares for secret " << BN_bn2dec(secret.first) << ":\n";
+            for (auto &share : secret.second) {
+                std::cout << "  " << BN_bn2dec(share) << "\n";
+            }
+        }
+        #endif
+
+        // Broadcast the shares to all parties
+        for (PARTY_ID_T j = 1; j <= m_totalParties; ++j) {
+            // Serialize each share separately and send as a structured message
+            std::ostringstream shareStream;
+            for (int i = 0; i < NUM_SECRETS; ++i) {
+                shareStream << serializeShare(shares[secrets[i]][j - 1]);
+                if (i < NUM_SECRETS - 1) {
+                    shareStream << "|"; // Delimiter between shares
+                }
+            }
+            std::string shareStr = shareStream.str();
+
+            // Add error handling for send operation
+            try {
+                m_comm->sendTo(j, shareStr.c_str(), shareStr.size());
+                #ifdef ENABLE_COUT
+                std::cout << "[Party " << m_partyId << "] Sent shares to Party " << j << "\n";
+                #endif
+            } catch (const std::exception& e) {
+                std::cerr << "[Party " << m_partyId << "] Failed to send shares to Party " << j 
+                          << ": " << e.what() << "\n";
+                // Optionally implement retry logic or mark the party as inactive
+            }
+        }
+        // Sync after distributing shares
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
+            if (m_cmd == CMD_SUCCESS) {
+                std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
+            }
+        }
+        this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
+    } else {
+        this->runEventLoop();
+    }
+
+    // Now party init is simpler, no direct broadcasting or looping.
+}
+
+void Party::broadcastAllData(const void* data, LENGTH_T length) {
+    for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+        m_comm->sendTo(i, data, length);
+    }
+}
+void Party::receiveAllData(void* data, LENGTH_T length) {
+    for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+        m_comm->dealerReceive(i, data, length);
+    }
 }
 
 // Corrected and updated broadcastShares function
@@ -658,9 +684,9 @@ void Party::runEventLoop()
                       << ": " << std::string(buffer, bytesRead) << "\n";
             #endif
             // launch a new thread to handle the message
-            std::thread([this, senderId, buffer, bytesRead]() {
-                handleMessage(senderId, buffer, bytesRead);
-            }).detach();
+            // std::thread([this, senderId, buffer, bytesRead]() {
+            handleMessage(senderId, buffer, bytesRead);
+            // }).detach();
             
         } else {
             // std::cerr << "[Party " << m_partyId << "] Received empty message from Party "
@@ -683,6 +709,60 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
     if (cmd == CMD_SEND_SHARES) {
         std::cout << "[Party " << m_partyId << "] Received command to send shares from Party " 
                   << senderId << "\n";
+        
+        // Receive shares from sender
+        // ...existing code...
+        
+        // Receive the share string from the sender
+        char buffer[BUFFER_SIZE];
+        size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
+        std::cout << "[Party " << m_partyId << "] Received share data from Party " << senderId << "\n";
+        if (bytesRead == 0) {
+            std::cerr << "[Party " << m_partyId << "] Received empty share data from Party " 
+                      << senderId << "\n";
+            return;
+        }
+        std::string shareStr(buffer, bytesRead);
+
+        // Split the received string into individual share hex strings
+        std::vector<std::string> shareParts;
+        std::stringstream ss(shareStr);
+        std::string item;
+        while (std::getline(ss, item, '|')) {
+            if (!item.empty()) {
+                shareParts.push_back(item);
+            }
+        }
+
+        // Verify that the number of received shares matches expected
+        if (shareParts.size() != NUM_SECRETS) {
+            std::cerr << "[Party " << m_partyId << "] Expected " << NUM_SECRETS 
+                      << " shares but received " << shareParts.size() << " from Party " 
+                      << senderId << "\n";
+            return;
+        }
+
+        // Deserialize each share hex string into ShareType
+        std::vector<ShareType> receivedShares;
+        try {
+            for (const auto& shareHex : shareParts) {
+                ShareType share = deserializeShare(shareHex);
+                #if defined(ENABLE_UNIT_TESTS)
+                std::cout << "[Party " << m_partyId << "] Received share: " << BN_bn2dec(share) << "\n";
+                #endif
+                receivedShares.push_back(share);
+            }
+        }
+        catch (const std::exception& e) {
+            std::cerr << "[Party " << m_partyId << "] Failed to deserialize shares from Party " 
+                      << senderId << ": " << e.what() << "\n";
+            return;
+        }
+
+        // TODO: Process the receivedShares as needed
+        // For example, store them, validate them, etc.
+
+        // Acknowledge successful reception
         m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
     }
     else if (cmd == CMD_SHUTDOWN) {
