@@ -46,10 +46,11 @@ void Party::init() {
         this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
         // Prepare the ShareType secrets for this party by initialing two secrets into the ShareType array
         std::vector<ShareType> secrets;
-        for (int i = 0; i < 2; ++i) {
-            BIGNUM* secret_share_type = AdditiveSecretSharing::newBigInt();
+        for (int i = 0; i < NUM_SECRETS; ++i) {
+            ShareType secret_share_type = AdditiveSecretSharing::newBigInt();
             BN_set_word(secret_share_type, m_localValue + i);
-            secrets.push_back(secret_share_type);
+            // secrets.push_back(secret_share_type);
+            secrets.emplace_back(secret_share_type);
             #if defined(ENABLE_COUT)
             std::cout << "[Party " << m_partyId << "] Secret share type value: " << BN_bn2dec(secret_share_type) << "\n";
             #endif
@@ -66,6 +67,10 @@ void Party::init() {
             }
         }
         #endif
+        // Free the secrets
+        for (auto &secret : secrets) {
+            BN_free(secret);
+        }
 
         // Broadcast the shares to all parties
         for (PARTY_ID_T j = 1; j <= m_totalParties; ++j) {
@@ -97,7 +102,30 @@ void Party::init() {
                 std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
             }
         }
-        m_comm->sendToAll(&CMD_ADDITION, sizeof(CMD_T));
+        this->broadcastAllData(&CMD_ADDITION, sizeof(CMD_T));
+        std::vector<ShareType> receivedParitialSums(m_totalParties);
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            char buffer[BUFFER_SIZE];
+            size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
+            if (bytesRead > 0) {
+                std::string partialSumStr(buffer, bytesRead);
+                ShareType partialSum = deserializeShare(partialSumStr);
+                receivedParitialSums[i - 1] = partialSum;
+            }
+        }
+        // check the received partial sums
+        #if defined(ENABLE_UNIT_TESTS)
+        for (auto &partialSum : receivedParitialSums) {
+            std::cout << "[Party " << m_partyId << "] Received partial sum from Party " << BN_bn2dec(partialSum) << "\n";
+        }
+        #endif
+        // Reconstruct the global sum
+        ShareType globalSum = AdditiveSecretSharing::newBigInt();
+        AdditiveSecretSharing::reconstructSecret(receivedParitialSums, globalSum);
+        // Print the global sum
+        std::cout << "[Party " << m_partyId << "] Global sum: " << BN_bn2dec(globalSum) << "\n";
+        // Free the global sum
+        BN_free(globalSum);
         this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {
         m_receivedShares.reserve(NUM_SECRETS);
@@ -774,9 +802,22 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
                   << senderId << "\n";
         m_running = false;
     } else if (cmd == CMD_ADDITION) {
+        #if defined(ENABLE_UNIT_TESTS)
         std::cout << "[Party " << m_partyId << "] Received command to perform addition from Party " 
                   << senderId << "\n";
-        // Perform addition
+        #endif // ENABLE_UNIT_TESTS
+        // Perform addition with received shares in m_receivedShares
+        ShareType sum_result = AdditiveSecretSharing::newBigInt();
+        AdditiveSecretSharing::addShares(m_receivedShares, sum_result);
+        #if defined(ENABLE_UNIT_TESTS)
+        std::cout << "[Party " << m_partyId << "] Sum result: " << BN_bn2dec(sum_result) << "\n";
+        #endif // ENABLE_UNIT_TESTS
+        // Reply the serialized sum back to the sender
+        std::string sumStr = serializeShare(sum_result);
+        m_comm->reply(sumStr.c_str(), sumStr.size());
+
+        // Clean up
+        BN_free(sum_result);
     } else {
         std::cerr << "[Party " << m_partyId << "] Unknown command received from Party " 
                   << senderId << ": " << cmd << "\n";
