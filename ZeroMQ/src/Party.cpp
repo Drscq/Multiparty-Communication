@@ -788,7 +788,7 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
 void Party::generateMyShares(const std::vector<ShareType> &secretValues,
                              std::unordered_map<ShareType, std::vector<ShareType>> &secretSharesMap){
     #if defined(ENABLE_UNIT_TESTS)
-    BIGNUM* reconstructed;
+    BIGNUM* reconstructed = AdditiveSecretSharing::newBigInt();
     #endif // ENABLE_UNIT_TESTS
     for (ShareType secretBN : secretValues) {
         if (!secretBN) throw std::runtime_error("Secret ShareType is null.");
@@ -796,6 +796,12 @@ void Party::generateMyShares(const std::vector<ShareType> &secretValues,
         // Generate shares
         std::vector<ShareType> shares;
         AdditiveSecretSharing::generateShares(secretBN, m_totalParties, shares);
+        #if defined(ENABLE_UNIT_TESTS)
+        std::cout << "After generating shares\n";
+        for (auto &share : shares) {
+            std::cout << "[Party " << m_partyId << "] Share: " << BN_bn2dec(share) << "\n";
+        }
+        #endif
         // Test the correctness of the shares by reconstructing the secret
         #if defined(ENABLE_UNIT_TESTS)
         AdditiveSecretSharing::reconstructSecret(shares, reconstructed);
@@ -805,6 +811,14 @@ void Party::generateMyShares(const std::vector<ShareType> &secretValues,
 
         // Store them in the map
         secretSharesMap[secretBN] = std::move(shares);
+        std::cout << "After storing shares\n";
+        #if defined(ENABLE_UNIT_TESTS)
+        // Check the shares stored in the unordered_map
+        std::cout << "[Party " << m_partyId << "] Shares for secret " << BN_bn2dec(secretBN) << ":\n";
+        for (auto &share : secretSharesMap[secretBN]) {
+            std::cout << "  " << BN_bn2dec(share) << "\n";
+        }
+        #endif
 
         #ifdef ENABLE_COUT
         std::cout << "[Party " << m_partyId << "] Generated shares for one ShareType secret\n";
