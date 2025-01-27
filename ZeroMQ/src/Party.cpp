@@ -8,7 +8,7 @@
 #include <iomanip>
 #include "config.h" // Include config.h for ENABLE_COUT
 
-#define BUFFER_SIZE (1024 * 100)  // 100 KB buffer
+#define BUFFER_SIZE (1024)  // 1 KB buffer
 
 // Helper function to serialize BIGNUM to hexadecimal string
 std::string serializeShare(ShareType share) {
@@ -48,7 +48,7 @@ void Party::init() {
         std::vector<ShareType> secrets;
         for (int i = 0; i < 2; ++i) {
             BIGNUM* secret_share_type = AdditiveSecretSharing::newBigInt();
-            BN_set_word(secret_share_type, m_localValue);
+            BN_set_word(secret_share_type, m_localValue + i);
             secrets.push_back(secret_share_type);
             #if defined(ENABLE_COUT)
             std::cout << "[Party " << m_partyId << "] Secret share type value: " << BN_bn2dec(secret_share_type) << "\n";
@@ -88,7 +88,6 @@ void Party::init() {
             } catch (const std::exception& e) {
                 std::cerr << "[Party " << m_partyId << "] Failed to send shares to Party " << j 
                           << ": " << e.what() << "\n";
-                // Optionally implement retry logic or mark the party as inactive
             }
         }
         // Sync after distributing shares
@@ -98,8 +97,11 @@ void Party::init() {
                 std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
             }
         }
+        m_comm->sendToAll(&CMD_ADDITION, sizeof(CMD_T));
         this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {
+        m_receivedShares.reserve(NUM_SECRETS);
+        m_receivedShares.resize(NUM_SECRETS);
         this->runEventLoop();
     }
 
@@ -733,7 +735,7 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
                 shareParts.push_back(item);
             }
         }
-
+        #if defined(ENABLE_UNIT_TESTS)
         // Verify that the number of received shares matches expected
         if (shareParts.size() != NUM_SECRETS) {
             std::cerr << "[Party " << m_partyId << "] Expected " << NUM_SECRETS 
@@ -741,16 +743,18 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
                       << senderId << "\n";
             return;
         }
+        #endif
 
         // Deserialize each share hex string into ShareType
-        std::vector<ShareType> receivedShares;
+        // std::vector<ShareType> receivedShares;
+        m_receivedShares.clear();
         try {
             for (const auto& shareHex : shareParts) {
                 ShareType share = deserializeShare(shareHex);
                 #if defined(ENABLE_UNIT_TESTS)
                 std::cout << "[Party " << m_partyId << "] Received share: " << BN_bn2dec(share) << "\n";
                 #endif
-                receivedShares.push_back(share);
+                m_receivedShares.push_back(share);
             }
         }
         catch (const std::exception& e) {
@@ -769,6 +773,13 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
         std::cout << "[Party " << m_partyId << "] Received shutdown command from Party " 
                   << senderId << "\n";
         m_running = false;
+    } else if (cmd == CMD_ADDITION) {
+        std::cout << "[Party " << m_partyId << "] Received command to perform addition from Party " 
+                  << senderId << "\n";
+        // Perform addition
+    } else {
+        std::cerr << "[Party " << m_partyId << "] Unknown command received from Party " 
+                  << senderId << ": " << cmd << "\n";
     }
 }
 

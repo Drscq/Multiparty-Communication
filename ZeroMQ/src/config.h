@@ -26,12 +26,13 @@
 // Uncomment the following line to enable cout statements
 // #define ENABLE_COUT
 
-// #define ENABLE_UNIT_TESTS
+#define ENABLE_UNIT_TESTS
 
 #define CMD_T uint8_t
 const CMD_T CMD_SEND_SHARES = 0;
 const CMD_T CMD_SUCCESS = 1;
 const CMD_T CMD_SHUTDOWN = 2;
+const CMD_T CMD_ADDITION = 3;
 
 
 // Define the number of secrets as a constant or retrieve dynamically

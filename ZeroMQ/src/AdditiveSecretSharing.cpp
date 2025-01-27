@@ -1,6 +1,7 @@
 #include "AdditiveSecretSharing.h"
 #include "config.h"
 #include <openssl/bn.h>
+#include <openssl/rand.h>
 #include <chrono>
 #include <stdexcept>
 
@@ -42,6 +43,8 @@ ShareType AdditiveSecretSharing::cloneBigInt(ShareType source) {
 }
 
 void AdditiveSecretSharing::generateShares(ShareType secret, int numParties, std::vector<ShareType>& sharesOut) {
+    // unsigned seedValue = (unsigned)time(NULL);
+    // RAND_seed(&seedValue, sizeof(seedValue));
     sharesOut.resize(numParties);
 
     BIGNUM* sumSoFar = newBigInt(); // Initialize to 0

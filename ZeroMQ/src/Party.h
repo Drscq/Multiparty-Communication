@@ -161,4 +161,5 @@ private:
     std::string m_operation;       // "add" or "mul"
     CMD_T m_cmd;
     bool m_running = true;
+    std::vector<ShareType> m_receivedShares;
 };
