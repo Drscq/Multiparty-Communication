@@ -78,7 +78,7 @@ public:
     /**
      * @brief Returns a global prime BIGNUM* for modulo ops.
      */
-    static BIGNUM* getPrime();
+    static ShareType getPrime();
 
     /**
      * @brief Thread-local RNG for random BN generation.

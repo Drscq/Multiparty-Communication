@@ -128,7 +128,7 @@ public:
 
     // Perform a single “demo” multiply of (x,y) using the triple
     // and reconstruct final product
-    void doMultiplicationDemo();
+    void doMultiplicationDemo(ShareType &z_i);
 
     // Add these two methods
     void runEventLoop();
@@ -162,4 +162,6 @@ private:
     CMD_T m_cmd;
     bool m_running = true;
     std::vector<ShareType> m_receivedShares;
+    std::vector<ShareType> m_receivedMultiplicationShares;
+    ShareType m_z_i;
 };

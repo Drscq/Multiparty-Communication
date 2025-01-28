@@ -22,6 +22,7 @@ public:
     size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength) override;
     size_t dealerReceive(PARTY_ID_T& routerId, void* buffer, LENGTH_T maxLength) override; // Add this method
     void reply(const void* data, LENGTH_T length) override;
+    void reply(void* routingIdMsg, const void* data, LENGTH_T length) override; // Add this method
     void close() override;
     void sendToAll(const void* data, LENGTH_T length) override; // Ensure this is declared
     ~NetIOMPDealerRouter() override;

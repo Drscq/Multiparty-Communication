@@ -7,6 +7,7 @@
 #include <sstream>
 #include <iomanip>
 #include "config.h" // Include config.h for ENABLE_COUT
+#include <zmq.hpp>
 
 #define BUFFER_SIZE (1024)  // 1 KB buffer
 
@@ -26,7 +27,7 @@ std::string serializeShare(ShareType share) {
 
 // Helper function to deserialize hexadecimal string back to BIGNUM
 ShareType deserializeShare(const std::string& data) {
-    BIGNUM* bn = BN_new();
+    ShareType bn = BN_new();
     if (!bn) {
         throw std::runtime_error("Failed to allocate BIGNUM for deserialization.");
     }
@@ -130,10 +131,50 @@ void Party::init() {
         BN_free(globalSum);
         this->broadcastAllData(&CMD_MULTIPLICATION, sizeof(CMD_T));
         this->distributeBeaverTriple();
+        // Sync after distributing shares
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
+            if (m_cmd == CMD_SUCCESS) {
+                std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
+            }
+        }
+        // make a pause to allow the dealer to send the triple shares
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        this->broadcastAllData(&CMD_FETCH_MULT_SHARE, sizeof(CMD_T));
+        // Sync after distributing shares
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
+            if (m_cmd == CMD_SUCCESS) {
+                std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
+            }
+        }
+        m_receivedMultiplicationShares.reserve(m_totalParties);
+        m_receivedMultiplicationShares.resize(m_totalParties);
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            std::cout << "[Party " << m_partyId << "] Receiving multiplication shares from Party " << i << "\n";
+            char buffer[BUFFER_SIZE];
+            size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
+            if (bytesRead > 0) {
+                std::string shareStr(buffer, bytesRead);
+                ShareType share = deserializeShare(shareStr);
+                m_receivedMultiplicationShares[i - 1] = share;
+            }
+        }
+        // Check the values in the multiplication shares
+        for (auto &share : m_receivedMultiplicationShares) {
+            std::cout << "[Party " << m_partyId << "] Received multiplication share: " << BN_bn2dec(share) << "\n";
+        }
+        // Use the multiplication shares to compute the final product
+        ShareType product = AdditiveSecretSharing::newBigInt();
+        AdditiveSecretSharing::reconstructSecret(m_receivedMultiplicationShares, product);
+        // Print the final product
+        std::cout << "[Party " << m_partyId << "] Final product: " << BN_bn2dec(product) << "\n";
+
         this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {
         m_receivedShares.reserve(NUM_SECRETS);
         m_receivedShares.resize(NUM_SECRETS);
+        m_z_i = AdditiveSecretSharing::newBigInt();
         this->runEventLoop();
     }
 
@@ -220,7 +261,7 @@ void Party::secureMultiplyShares(ShareType myShareX, ShareType myShareY,
 void Party::distributeOwnShares() {
     try {
         // Create and initialize secret BIGNUM
-        BIGNUM* secret = AdditiveSecretSharing::newBigInt();
+        ShareType secret = AdditiveSecretSharing::newBigInt();
         if (!secret) throw std::runtime_error("Failed to create secret BIGNUM");
         
         #ifdef ENABLE_COUT
@@ -332,7 +373,7 @@ void Party::syncAfterGather() {
 
 void Party::distributeSharesAndComputeMyPartial() {
     // 1) Convert localValue to BIGNUM
-    BIGNUM* secretBn = AdditiveSecretSharing::newBigInt();
+    ShareType secretBn = AdditiveSecretSharing::newBigInt();
     BN_set_word(secretBn, m_localValue);
 
     // 2) Generate n additive shares
@@ -357,7 +398,7 @@ void Party::distributeSharesAndComputeMyPartial() {
     }
 
     // 4) Initialize my partial sum to my own share
-    BIGNUM* myPartialSumBN = AdditiveSecretSharing::newBigInt();
+    ShareType myPartialSumBN = AdditiveSecretSharing::newBigInt();
     BN_copy(myPartialSumBN, mySecretShares[m_partyId - 1]);
 
     // 5) Receive one share from each other party
@@ -369,7 +410,7 @@ void Party::distributeSharesAndComputeMyPartial() {
         size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
         if (bytesRead > 0) {
             std::string shareHex(buffer, bytesRead);
-            BIGNUM* shareBN = deserializeShare(shareHex);
+            ShareType shareBN = deserializeShare(shareHex);
             // Add to my partial sum
             BN_mod_add(myPartialSumBN, myPartialSumBN, shareBN, 
                        AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
@@ -407,7 +448,7 @@ void Party::broadcastAndReconstructGlobalSum() {
     m_comm->sendToAll(partialHex.c_str(), partialHex.size());
 
     // 2) Sum up all partial sums
-    BIGNUM* finalSum = AdditiveSecretSharing::newBigInt();
+    ShareType finalSum = AdditiveSecretSharing::newBigInt();
     BN_copy(finalSum, m_myPartialSum);
 
     int needed = m_totalParties - 1;
@@ -418,7 +459,7 @@ void Party::broadcastAndReconstructGlobalSum() {
         size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
         if (bytesRead > 0) {
             std::string pHex(buffer, bytesRead);
-            BIGNUM* otherPartial = deserializeShare(pHex);
+            ShareType otherPartial = deserializeShare(pHex);
             BN_mod_add(finalSum, finalSum, otherPartial, 
                        AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
             BN_free(otherPartial);
@@ -454,13 +495,13 @@ void Party::distributeBeaverTriple()
     #endif
 
     // 1) Generate random a, b in [0..prime-1].
-    BIGNUM* a = AdditiveSecretSharing::newBigInt();
-    BIGNUM* b = AdditiveSecretSharing::newBigInt();
+    ShareType a = AdditiveSecretSharing::newBigInt();
+    ShareType b = AdditiveSecretSharing::newBigInt();
     BN_rand_range(a, AdditiveSecretSharing::getPrime());
     BN_rand_range(b, AdditiveSecretSharing::getPrime());
 
     // 2) Compute c = a*b mod prime.
-    BIGNUM* c = AdditiveSecretSharing::newBigInt();
+    ShareType c = AdditiveSecretSharing::newBigInt();
     BN_mod_mul(c, a, b, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
 
     // 3) Make shares for a, b, c
@@ -551,39 +592,15 @@ void Party::receiveBeaverTriple()
 }
 
 // Implement doMultiplicationDemo
-void Party::doMultiplicationDemo()
+void Party::doMultiplicationDemo(ShareType &z_i)
 {
-    // 1) Suppose we already have x_i, y_i, and myTriple = (a_i, b_i, c_i)
-    BIGNUM* bigX = AdditiveSecretSharing::newBigInt();
-    BN_set_word(bigX, m_localValue);
-
-    BIGNUM* bigY = AdditiveSecretSharing::newBigInt();
-    BN_set_word(bigY, m_localValue + 1); // for demo
-
-    // Share x, y across all parties
-    // Only Party 1 generates and distributes the shares
-    static std::vector<ShareType> xShares, yShares;
-    if (m_partyId == 1) {
-        AdditiveSecretSharing::generateShares(bigX, m_totalParties, xShares);
-        AdditiveSecretSharing::generateShares(bigY, m_totalParties, yShares);
-        broadcastShares(xShares);
-        broadcastShares(yShares);
-    } else {
-        // Receive xShare and yShare from Party 1
-        receiveShares(xShares, 1);
-        receiveShares(yShares, 1);
-    }
-
-    // Synchronize after distribution
-    syncAfterDistribute();
-
     // Compute d_i = x_i - a_i and e_i = y_i - b_i
-    BIGNUM* d_i = AdditiveSecretSharing::newBigInt();
-    BIGNUM* e_i = AdditiveSecretSharing::newBigInt();
-    if(!BN_mod_sub(d_i, xShares[m_partyId - 1], myTriple.a, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx())) {
+    ShareType d_i = AdditiveSecretSharing::newBigInt();
+    ShareType e_i = AdditiveSecretSharing::newBigInt();
+    if(!BN_mod_sub(d_i, m_receivedShares[0], myTriple.a, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx())) {
         throw std::runtime_error("BN_mod_sub failed for d_i");
     }
-    if(!BN_mod_sub(e_i, yShares[m_partyId - 1], myTriple.b, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx())) {
+    if(!BN_mod_sub(e_i, m_receivedShares[1], myTriple.b, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx())) {
         throw std::runtime_error("BN_mod_sub failed for e_i");
     }
 
@@ -592,7 +609,7 @@ void Party::doMultiplicationDemo()
     std::string eHex = serializeShare(e_i);
     std::string deMsg = dHex + "|" + eHex;
     // Send to all except self
-    for (int pid = 1; pid <= m_totalParties; ++pid) {
+    for (PARTY_ID_T pid = 1; pid <= m_totalParties; ++pid) {
         if (pid == m_partyId) continue;
         m_comm->sendTo(pid, deMsg.c_str(), deMsg.size());
         #ifdef ENABLE_COUT
@@ -601,8 +618,8 @@ void Party::doMultiplicationDemo()
     }
 
     // Receive all d_j and e_j from other parties
-    BIGNUM* D = AdditiveSecretSharing::newBigInt();
-    BIGNUM* E = AdditiveSecretSharing::newBigInt();
+    ShareType D = AdditiveSecretSharing::newBigInt();
+    ShareType E = AdditiveSecretSharing::newBigInt();
     BN_zero(D);
     BN_zero(E);
 
@@ -626,8 +643,8 @@ void Party::doMultiplicationDemo()
         std::string dStr = deReceived.substr(0, pos);
         std::string eStr = deReceived.substr(pos + 1);
 
-        BIGNUM* d_j = deserializeShare(dStr);
-        BIGNUM* e_j = deserializeShare(eStr);
+        ShareType d_j = deserializeShare(dStr);
+        ShareType e_j = deserializeShare(eStr);
 
         BN_mod_add(D, D, d_j, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
         BN_mod_add(E, E, e_j, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
@@ -637,66 +654,35 @@ void Party::doMultiplicationDemo()
     }
 
     // Compute z_i = c_i + a_i * E + b_i * D + D * E
-    BIGNUM* z_i = AdditiveSecretSharing::newBigInt();
+    // z_i = AdditiveSecretSharing::newBigInt();
     BN_copy(z_i, myTriple.c);
 
-    BIGNUM* aE = AdditiveSecretSharing::newBigInt();
+    ShareType aE = AdditiveSecretSharing::newBigInt();
     BN_mod_mul(aE, myTriple.a, E, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
     BN_mod_add(z_i, z_i, aE, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
 
-    BIGNUM* bD = AdditiveSecretSharing::newBigInt();
+    ShareType bD = AdditiveSecretSharing::newBigInt();
     BN_mod_mul(bD, myTriple.b, D, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
     BN_mod_add(z_i, z_i, bD, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
 
-    BIGNUM* DE = AdditiveSecretSharing::newBigInt();
-    BN_mod_mul(DE, D, E, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
-    BN_mod_add(z_i, z_i, DE, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
-
-    // Broadcast z_i to all except self
-    std::string zHex = serializeShare(z_i);
-    for (int pid = 1; pid <= m_totalParties; ++pid) {
-        if (pid == m_partyId) continue;
-        m_comm->sendTo(pid, zHex.c_str(), zHex.size());
-        #ifdef ENABLE_COUT
-        std::cout << "[Party " << m_partyId << "] Broadcasted product share to Party " << pid << "\n";
-        #endif
+    if (m_partyId == 1) {
+        ShareType DE = AdditiveSecretSharing::newBigInt();
+        BN_mod_mul(DE, D, E, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+        BN_mod_add(z_i, z_i, DE, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+        BN_free(DE);
     }
-
-    // Receive all z_j from other parties
-    BIGNUM* finalZ = AdditiveSecretSharing::newBigInt();
-    BN_copy(finalZ, z_i);
-
-    for (int count = 0; count < (m_totalParties - 1); ++count) {
-        PARTY_ID_T senderId;
-        char buffer[BUFFER_SIZE];
-        size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
-        if (bytesRead == 0) {
-            throw std::runtime_error("Received empty z_j from Party " + std::to_string(senderId));
-        }
-        std::string zStr(buffer, bytesRead);
-        BIGNUM* z_j = deserializeShare(zStr);
-        BN_mod_add(finalZ, finalZ, z_j, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
-        BN_free(z_j);
-    }
-
-    // Reconstruct final product
-    char* dec = BN_bn2dec(finalZ);
-    std::cout << "[Party " << m_partyId << "] Reconstructed x*y = " << dec << "\n";
-    OPENSSL_free(dec);
+    
+    #if defined(ENABLE_COUT)
+    std::cout << "[doMultiplicationDemo][Party " << m_partyId << "] z_i = " << BN_bn2dec(z_i) << "\n";
+    #endif
 
     // Cleanup
-    BN_free(bigX);
-    BN_free(bigY);
     BN_free(d_i);
     BN_free(e_i);
     BN_free(D);
     BN_free(E);
     BN_free(aE);
     BN_free(bD);
-
-    BN_free(DE);
-    BN_free(z_i);
-    BN_free(finalZ);
 }
 // ...existing code...
 
@@ -827,6 +813,28 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
                   << senderId << "\n";
         #endif // ENABLE_UNIT_TESTS
         this->receiveBeaverTriple();
+        // m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
+        m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
+        
+        #if defined(ENABLE_UNIT_TESTS)
+        // check the received Beaver triple values
+        std::cout << "[Party " << m_partyId << "] Received Beaver triple shares:\n";
+        std::cout << "  a: " << BN_bn2dec(myTriple.a) << "\n";
+        std::cout << "  b: " << BN_bn2dec(myTriple.b) << "\n";
+        std::cout << "  c: " << BN_bn2dec(myTriple.c) << "\n";
+        #endif // ENABLE_UNIT_TESTS
+        this->doMultiplicationDemo(m_z_i);
+        #if defined(ENABLE_UNIT_TESTS)
+        std::cout << "[Party " << m_partyId << "] m_z_i: " << BN_bn2dec(m_z_i) << "\n";
+        #endif // ENABLE_UNIT_TESTS
+        // // Send the result back to the sender
+    } else if (cmd == CMD_FETCH_MULT_SHARE) {
+        std::cout << "[Party " << m_partyId << "] Received command to fetch multiplication share from Party " 
+                  << senderId << "\n";
+        m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
+        std::string zStr = serializeShare(m_z_i);
+        m_comm->reply(zStr.c_str(), zStr.size());
+        BN_free(m_z_i);
     } else {
         std::cerr << "[Party " << m_partyId << "] Unknown command received from Party " 
                   << senderId << ": " << cmd << "\n";
@@ -838,7 +846,7 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
 void Party::generateMyShares(const std::vector<ShareType> &secretValues,
                              std::unordered_map<ShareType, std::vector<ShareType>> &secretSharesMap){
     #if defined(ENABLE_UNIT_TESTS)
-    BIGNUM* reconstructed = AdditiveSecretSharing::newBigInt();
+    ShareType reconstructed = AdditiveSecretSharing::newBigInt();
     #endif // ENABLE_UNIT_TESTS
     for (ShareType secretBN : secretValues) {
         if (!secretBN) throw std::runtime_error("Secret ShareType is null.");

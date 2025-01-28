@@ -149,6 +149,16 @@ void NetIOMPReqRep::reply(const void* data, LENGTH_T length)
     m_repSocket->send(reply, zmq::send_flags::none);
 }
 
+void NetIOMPReqRep::reply(void* routingIdMsg, const void* data, LENGTH_T length) {
+    // For REQ/REP sockets, the routing ID is the first message part
+    zmq::message_t routingId(routingIdMsg, sizeof(PARTY_ID_T));
+    zmq::message_t reply(length);
+    std::memcpy(reply.data(), data, length);
+
+    m_repSocket->send(routingId, zmq::send_flags::sndmore);
+    m_repSocket->send(reply, zmq::send_flags::none);
+}
+
 void NetIOMPReqRep::close()
 {
     // Set linger to 0 to prevent hanging on close

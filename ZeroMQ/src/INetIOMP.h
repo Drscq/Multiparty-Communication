@@ -64,6 +64,8 @@ public:
      */
     virtual void reply(const void* data, LENGTH_T length) = 0;
 
+    virtual void reply(void* routingIdMsg, const void* data, LENGTH_T length) = 0;
+
     /**
      * @brief Closes all sockets.
      */

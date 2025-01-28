@@ -199,6 +199,58 @@ void NetIOMPDealerRouter::reply(const void* data, LENGTH_T length)
     m_routerSocket.send(replyMsg, zmq::send_flags::none);
 }
 
+void NetIOMPDealerRouter::reply(void* routingIdMsg, const void* data, LENGTH_T length)
+{
+    // Determine which routing ID we will use
+    zmq::message_t finalRoute;
+
+    // Case 1: No pointer provided -> use the last known route
+    if (!routingIdMsg)
+    {
+        std::cout << "[reply] No routingIdMsg provided; using m_lastRoutingId.\n";
+        finalRoute.rebuild(m_lastRoutingId.size());
+        std::memcpy(finalRoute.data(), m_lastRoutingId.data(), m_lastRoutingId.size());
+    }
+    else
+    {
+        // routingIdMsg points to a zmq::message_t
+        auto* userRoute = static_cast<zmq::message_t*>(routingIdMsg);
+
+        // Case 2: Provided pointer, but size=0 -> again use m_lastRoutingId
+        if (userRoute->size() == 0)
+        {
+            std::cout << "[reply] Provided routingIdMsg is empty; using m_lastRoutingId.\n";
+            finalRoute.rebuild(m_lastRoutingId.size());
+            std::memcpy(finalRoute.data(), m_lastRoutingId.data(), m_lastRoutingId.size());
+        }
+        else
+        {
+            // Case 3: Non-empty route in userRoute -> use that
+            std::cout << "[reply] Using the route from routingIdMsg.\n";
+            finalRoute.rebuild(userRoute->size());
+            std::memcpy(finalRoute.data(), userRoute->data(), userRoute->size());
+        }
+    }
+
+    // Prepare the payload message
+    zmq::message_t replyMsg(length);
+    std::memcpy(replyMsg.data(), data, length);
+
+    // Send [route][payload] as multipart
+    m_routerSocket.send(finalRoute, zmq::send_flags::sndmore);
+    m_routerSocket.send(replyMsg, zmq::send_flags::none);
+
+    // If user passed a routingIdMsg pointer, update it with what we *actually used*
+    if (routingIdMsg)
+    {
+        auto* userRoute = static_cast<zmq::message_t*>(routingIdMsg);
+        userRoute->rebuild(finalRoute.size());
+        std::memcpy(userRoute->data(), finalRoute.data(), finalRoute.size());
+    }
+}
+
+
+
 void NetIOMPDealerRouter::close()
 {
     // Set linger to 0 to prevent hanging on close

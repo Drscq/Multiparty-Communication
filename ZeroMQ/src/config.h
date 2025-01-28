@@ -34,6 +34,7 @@ const CMD_T CMD_SUCCESS = 1;
 const CMD_T CMD_SHUTDOWN = 2;
 const CMD_T CMD_ADDITION = 3;
 const CMD_T CMD_MULTIPLICATION = 4;
+const CMD_T CMD_FETCH_MULT_SHARE = 5;
 
 
 // Define the number of secrets as a constant or retrieve dynamically

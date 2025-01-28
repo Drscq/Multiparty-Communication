@@ -18,6 +18,7 @@ public:
     void sendTo(PARTY_ID_T targetId, const void* data, LENGTH_T length) override;
     size_t receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLength) override;
     void reply(const void* data, LENGTH_T length) override;
+    void reply(void* routingIdMsg, const void* data, LENGTH_T length) override; // Add this method
     void close() override;
     void sendToAll(const void* data, LENGTH_T length) override;
     virtual void initDealers() override;
