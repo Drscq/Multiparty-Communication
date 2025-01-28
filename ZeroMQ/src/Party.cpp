@@ -123,9 +123,13 @@ void Party::init() {
         ShareType globalSum = AdditiveSecretSharing::newBigInt();
         AdditiveSecretSharing::reconstructSecret(receivedParitialSums, globalSum);
         // Print the global sum
+        #if defined(ENABLE_UNIT_TESTS)
         std::cout << "[Party " << m_partyId << "] Global sum: " << BN_bn2dec(globalSum) << "\n";
+        #endif
         // Free the global sum
         BN_free(globalSum);
+        this->broadcastAllData(&CMD_MULTIPLICATION, sizeof(CMD_T));
+        this->distributeBeaverTriple();
         this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {
         m_receivedShares.reserve(NUM_SECRETS);
@@ -439,10 +443,10 @@ void Party::broadcastAndReconstructGlobalSum() {
 // Implement distributeBeaverTriple
 void Party::distributeBeaverTriple()
 {
-    if (m_partyId != 1) {
-        // Only Party 1 should distribute Beaver triples
-        return;
-    }
+    // if (m_partyId != 1) {
+    //     // Only Party 1 should distribute Beaver triples
+    //     return;
+    // }
 
     // **Move the log inside the conditional check**
     #if defined(ENABLE_COUT)
@@ -474,22 +478,27 @@ void Party::distributeBeaverTriple()
 
         std::string tripleMsg = aHex + "|" + bHex + "|" + cHex;
 
-        if (pid == m_partyId) {
-            // Store shares locally
-            myTriple.a = AdditiveSecretSharing::cloneBigInt(aShares[pid-1]);
-            myTriple.b = AdditiveSecretSharing::cloneBigInt(bShares[pid-1]);
-            myTriple.c = AdditiveSecretSharing::cloneBigInt(cShares[pid-1]);
+        // Send shares to other parties
+        m_comm->sendTo(pid, tripleMsg.c_str(), tripleMsg.size());
+        #ifdef ENABLE_COUT
+        std::cout << "[Party " << m_partyId << "] Sent Beaver triple shares to Party " << pid << "\n";
+        #endif
+        // if (pid == m_partyId) {
+        //     // Store shares locally
+        //     myTriple.a = AdditiveSecretSharing::cloneBigInt(aShares[pid-1]);
+        //     myTriple.b = AdditiveSecretSharing::cloneBigInt(bShares[pid-1]);
+        //     myTriple.c = AdditiveSecretSharing::cloneBigInt(cShares[pid-1]);
 
-            #ifdef ENABLE_COUT
-            std::cout << "[Party " << m_partyId << "] Stored own Beaver triple shares.\n";
-            #endif
-        } else {
-            // Send shares to other parties
-            m_comm->sendTo(pid, tripleMsg.c_str(), tripleMsg.size());
-            #ifdef ENABLE_COUT
-            std::cout << "[Party " << m_partyId << "] Sent Beaver triple shares to Party " << pid << "\n";
-            #endif
-        }
+        //     #ifdef ENABLE_COUT
+        //     std::cout << "[Party " << m_partyId << "] Stored own Beaver triple shares.\n";
+        //     #endif
+        // } else {
+        //     // Send shares to other parties
+        //     m_comm->sendTo(pid, tripleMsg.c_str(), tripleMsg.size());
+        //     #ifdef ENABLE_COUT
+        //     std::cout << "[Party " << m_partyId << "] Sent Beaver triple shares to Party " << pid << "\n";
+        //     #endif
+        // }
     }
 
     // 5) Clean up
@@ -501,15 +510,11 @@ void Party::distributeBeaverTriple()
     for (auto bn : cShares) BN_free(bn);
 }
 
-// Modify receiveBeaverTriple to ensure it only accepts triples from Party 1
+// Modify receiveBeaverTriple to ensure it only accepts triples from Party with BeaverTriple
 void Party::receiveBeaverTriple()
 {
-    if (m_partyId == 1) {
-        // Party 1 already has its own triple shares
-        return;
-    }
 
-    // Wait for message from Party 1
+    // Wait for message from Party with Beaver triple
     PARTY_ID_T sender;
     char buffer[BUFFER_SIZE];
     size_t bytesRead = m_comm->receive(sender, buffer, sizeof(buffer));
@@ -521,9 +526,7 @@ void Party::receiveBeaverTriple()
     if (bytesRead == 0) {
         throw std::runtime_error("Failed to receive Beaver triple from Party 1");
     }
-    if (sender != 1) {
-        throw std::runtime_error("Expected Beaver triple from Party 1, got party " + std::to_string(sender));
-    }
+   
 
     std::string tripleMsg(buffer, bytesRead);
 
@@ -818,6 +821,12 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
 
         // Clean up
         BN_free(sum_result);
+    } else if (cmd == CMD_MULTIPLICATION) {
+        #if defined(ENABLE_UNIT_TESTS)
+        std::cout << "[Party " << m_partyId << "] Received command to perform multiplication from Party " 
+                  << senderId << "\n";
+        #endif // ENABLE_UNIT_TESTS
+        this->receiveBeaverTriple();
     } else {
         std::cerr << "[Party " << m_partyId << "] Unknown command received from Party " 
                   << senderId << ": " << cmd << "\n";
