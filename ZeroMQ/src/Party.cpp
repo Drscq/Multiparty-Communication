@@ -139,7 +139,7 @@ void Party::init() {
             }
         }
         // make a pause to allow the dealer to send the triple shares
-        // std::this_thread::sleep_for(std::chrono::seconds(5));
+        // std::this_thread::sleep_for(std::chrono::seconds(2));
         this->broadcastAllData(&CMD_FETCH_MULT_SHARE, sizeof(CMD_T));
         // Sync after distributing shares
         for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
@@ -652,7 +652,7 @@ void Party::doMultiplicationDemo(ShareType &z_i)
         BN_free(d_j);
         BN_free(e_j);
     }
-    this->syncAfterDistribute();
+    // this->syncAfterDistribute();
     // Compute z_i = c_i + a_i * E + b_i * D + D * E
     // z_i = AdditiveSecretSharing::newBigInt();
     BN_copy(z_i, myTriple.c);
@@ -696,7 +696,6 @@ void Party::runEventLoop()
         PARTY_ID_T senderId;
         char buffer[BUFFER_SIZE];
         size_t bytesRead = m_comm->receive(senderId, buffer, sizeof(buffer));
-
         if (bytesRead > 0) {
             #if defined(ENABLE_COUT)
             std::cout << "[Party " << m_partyId << "] Received message from Party " << senderId
@@ -726,8 +725,12 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
     CMD_T cmd;
     std::memcpy(&cmd, data, length);
     if (cmd == CMD_SEND_SHARES) {
+        #if defined(ENABLE_UNIT_TESTS)
         std::cout << "[Party " << m_partyId << "] Received command to send shares from Party " 
                   << senderId << "\n";
+        #endif // ENABLE_UNIT_TESTS
+        // m_dealRouterId = m_comm->getLastRoutingId();
+        std::cout << "[Party " << m_partyId << "] has the value of m_lastRoutingId: " << m_comm->getLastRoutingId() << "\n";
         
         // Receive shares from sender
         // ...existing code...
@@ -814,7 +817,7 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
         #endif // ENABLE_UNIT_TESTS
         this->receiveBeaverTriple();
         // m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
-        m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
+        // m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
         
         #if defined(ENABLE_UNIT_TESTS)
         // check the received Beaver triple values
@@ -827,7 +830,9 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
         #if defined(ENABLE_UNIT_TESTS)
         std::cout << "[Party " << m_partyId << "] m_z_i: " << BN_bn2dec(m_z_i) << "\n";
         #endif // ENABLE_UNIT_TESTS
-        // // Send the result back to the sender
+        // send success to the dealer
+        std::cout << "m_dealRouterId: " << m_dealRouterId << "\n";
+        m_comm->reply((void*)m_dealRouterId.c_str(), &CMD_SUCCESS, sizeof(CMD_T));
     } else if (cmd == CMD_FETCH_MULT_SHARE) {
         std::cout << "[Party " << m_partyId << "] Received command to fetch multiplication share from Party " 
                   << senderId << "\n";

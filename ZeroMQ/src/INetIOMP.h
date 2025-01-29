@@ -70,6 +70,12 @@ public:
      * @brief Closes all sockets.
      */
     virtual void close() = 0;
+
+    /**
+     * @brief Gets the last routing ID.
+     * @return The last routing ID as a string.
+     */
+    virtual std::string getLastRoutingId() const = 0;
 };
 
 #endif // INET_IOMP_H

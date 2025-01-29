@@ -25,8 +25,9 @@ public:
     void reply(void* routingIdMsg, const void* data, LENGTH_T length) override; // Add this method
     void close() override;
     void sendToAll(const void* data, LENGTH_T length) override; // Ensure this is declared
+    std::string getLastRoutingId() const override;
     ~NetIOMPDealerRouter() override;
-
+    
 private:
     zmq::context_t m_context;
     zmq::socket_t m_routerSocket; // ROUTER socket

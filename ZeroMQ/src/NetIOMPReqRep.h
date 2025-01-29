@@ -23,6 +23,7 @@ public:
     void sendToAll(const void* data, LENGTH_T length) override;
     virtual void initDealers() override;
     virtual size_t dealerReceive(PARTY_ID_T& routerId, void* buffer, LENGTH_T maxLength) override;
+    std::string getLastRoutingId() const override; // Add this override
     ~NetIOMPReqRep() override;
 
 private:
@@ -32,6 +33,7 @@ private:
     zmq::context_t m_context;
     std::unique_ptr<zmq::socket_t> m_repSocket;
     std::map<PARTY_ID_T, std::unique_ptr<zmq::socket_t>> m_reqSockets;
+    std::string m_lastRoutingId; // Add this member
 };
 
 #endif // NET_IOMP_REQREP_H

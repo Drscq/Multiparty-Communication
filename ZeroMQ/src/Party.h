@@ -20,7 +20,10 @@ public:
     Party(PARTY_ID_T id, int totalParties, int localValue, INetIOMP* comm,
           bool hasSecret, const std::string& operation)
         : m_partyId(id), m_totalParties(totalParties), m_localValue(localValue),
-          m_comm(comm), m_hasSecret(hasSecret), m_operation(operation) {}
+          m_comm(comm), m_hasSecret(hasSecret), m_operation(operation) {
+            // Party5_to_1
+            m_dealRouterId = "Party" + std::to_string(m_totalParties + 1) + "_to_" + std::to_string(m_partyId);
+          }
 
     /**
      * @brief Initializes any necessary communication steps (already done in main usually).
@@ -164,4 +167,6 @@ private:
     std::vector<ShareType> m_receivedShares;
     std::vector<ShareType> m_receivedMultiplicationShares;
     ShareType m_z_i;
+    // Party5_to_1
+    std::string m_dealRouterId;
 };

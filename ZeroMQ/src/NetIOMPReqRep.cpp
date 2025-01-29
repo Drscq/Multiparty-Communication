@@ -125,6 +125,7 @@ size_t NetIOMPReqRep::receive(PARTY_ID_T& senderId, void* buffer, LENGTH_T maxLe
         throw std::runtime_error("[NetIOMPReqRep] Received invalid sender ID size.");
     }
     std::memcpy(&senderId, idMessage.data(), sizeof(PARTY_ID_T));
+    m_lastRoutingId = std::to_string(senderId);
 
     // Extract the data
     size_t receivedLength = dataMessage.size();
@@ -179,6 +180,11 @@ void NetIOMPReqRep::close()
     }
 
     m_context.close();
+}
+
+std::string NetIOMPReqRep::getLastRoutingId() const
+{
+    return m_lastRoutingId;
 }
 
 NetIOMPReqRep::~NetIOMPReqRep()
