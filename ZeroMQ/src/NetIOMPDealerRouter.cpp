@@ -215,6 +215,22 @@ void NetIOMPDealerRouter::reply(void* routingIdMsg, const void* data, LENGTH_T l
     m_routerSocket.send(reply, zmq::send_flags::none);
 }
 
+void NetIOMPDealerRouter::reply(void* routingIdMsg, LENGTH_T size, const void* data, LENGTH_T length)
+{
+    const char* routingIdCharPtr = static_cast<const char*>(routingIdMsg);
+    std::string routingIdStr(routingIdCharPtr, size);
+    std::cout << "[NetIOMPDealerRouter] Received routing ID: " << routingIdStr << "\n";
+
+    zmq::message_t routingId(size);
+    std::memcpy(routingId.data(), routingIdStr.data(), size);
+
+    zmq::message_t replyMsg(length);
+    std::memcpy(replyMsg.data(), data, length);
+
+    m_routerSocket.send(routingId, zmq::send_flags::sndmore);
+    m_routerSocket.send(replyMsg, zmq::send_flags::none);
+}
+
 std::string NetIOMPDealerRouter::getLastRoutingId() const
 {
     return m_lastRoutingId;

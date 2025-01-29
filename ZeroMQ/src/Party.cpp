@@ -135,7 +135,14 @@ void Party::init() {
         for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
             m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
             if (m_cmd == CMD_SUCCESS) {
-                std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
+                std::cout << "[distributeBeaverTriple][Party " << m_partyId << "] Received success from Party " << i << "\n";
+            }
+        }
+         // Sync after distributing shares
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
+            if (m_cmd == CMD_SUCCESS) {
+                std::cout << "[MultipliationDone][Party " << m_partyId << "] Received success from Party " << i << "\n";
             }
         }
         // make a pause to allow the dealer to send the triple shares
@@ -816,7 +823,7 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
                   << senderId << "\n";
         #endif // ENABLE_UNIT_TESTS
         this->receiveBeaverTriple();
-        // m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
+        m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
         // m_comm->reply(&CMD_SUCCESS, sizeof(CMD_T));
         
         #if defined(ENABLE_UNIT_TESTS)
@@ -832,7 +839,8 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
         #endif // ENABLE_UNIT_TESTS
         // send success to the dealer
         std::cout << "m_dealRouterId: " << m_dealRouterId << "\n";
-        m_comm->reply((void*)m_dealRouterId.c_str(), &CMD_SUCCESS, sizeof(CMD_T));
+        // m_comm->reply((void*)m_dealRouterId.c_str(), &CMD_SUCCESS, sizeof(CMD_T));
+        m_comm->reply((void*)m_dealRouterId.c_str(), m_dealRouterId.size(), &CMD_SUCCESS, sizeof(CMD_T));
     } else if (cmd == CMD_FETCH_MULT_SHARE) {
         std::cout << "[Party " << m_partyId << "] Received command to fetch multiplication share from Party " 
                   << senderId << "\n";

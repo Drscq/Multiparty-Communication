@@ -160,6 +160,17 @@ void NetIOMPReqRep::reply(void* routingIdMsg, const void* data, LENGTH_T length)
     m_repSocket->send(reply, zmq::send_flags::none);
 }
 
+void NetIOMPReqRep::reply(void* routingIdMsg, LENGTH_T size, const void* data, LENGTH_T length)
+{
+    (void)routingIdMsg;
+    (void)size;
+    // For REQ/REP, we generally ignore the routing ID.
+    // Just send the data back as a single message.
+    zmq::message_t reply(length);
+    std::memcpy(reply.data(), data, length);
+    m_repSocket->send(reply, zmq::send_flags::none);
+}
+
 void NetIOMPReqRep::close()
 {
     // Set linger to 0 to prevent hanging on close
