@@ -139,7 +139,7 @@ void Party::init() {
             }
         }
         // make a pause to allow the dealer to send the triple shares
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        // std::this_thread::sleep_for(std::chrono::seconds(5));
         this->broadcastAllData(&CMD_FETCH_MULT_SHARE, sizeof(CMD_T));
         // Sync after distributing shares
         for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
@@ -652,7 +652,7 @@ void Party::doMultiplicationDemo(ShareType &z_i)
         BN_free(d_j);
         BN_free(e_j);
     }
-
+    this->syncAfterDistribute();
     // Compute z_i = c_i + a_i * E + b_i * D + D * E
     // z_i = AdditiveSecretSharing::newBigInt();
     BN_copy(z_i, myTriple.c);
