@@ -124,7 +124,7 @@ void Party::init() {
         ShareType globalSum = AdditiveSecretSharing::newBigInt();
         AdditiveSecretSharing::reconstructSecret(receivedParitialSums, globalSum);
         // Print the global sum
-        #if defined(ENABLE_UNIT_TESTS)
+        #if defined(ENABLE_FINAL_RESULT)
         std::cout << "[Party " << m_partyId << "] Global sum: " << BN_bn2dec(globalSum) << "\n";
         #endif
         // Free the global sum
@@ -175,7 +175,9 @@ void Party::init() {
         ShareType product = AdditiveSecretSharing::newBigInt();
         AdditiveSecretSharing::reconstructSecret(m_receivedMultiplicationShares, product);
         // Print the final product
+        #if defined(ENABLE_FINAL_RESULT)
         std::cout << "[Party " << m_partyId << "] Final product: " << BN_bn2dec(product) << "\n";
+        #endif
 
         this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {

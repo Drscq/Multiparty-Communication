@@ -28,6 +28,8 @@
 
 // #define ENABLE_UNIT_TESTS
 
+#define ENABLE_FINAL_RESULT
+
 #define CMD_T uint8_t
 const CMD_T CMD_SEND_SHARES = 0;
 const CMD_T CMD_SUCCESS = 1;
