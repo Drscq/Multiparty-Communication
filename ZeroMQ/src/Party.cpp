@@ -49,6 +49,7 @@ void Party::init() {
         m_global_mac_key = AdditiveSecretSharing::newBigInt();
         BN_rand_range(m_global_mac_key, AdditiveSecretSharing::getPrime());
         #if defined(ENABLE_UNIT_TESTS)
+        BN_set_word(m_global_mac_key, 2);
         std::cout << "[Party " << m_partyId << "] Global MAC key: " << BN_bn2dec(m_global_mac_key) << "\n";
         #endif
         #endif
@@ -84,6 +85,15 @@ void Party::init() {
             std::cout << "[Party " << m_partyId << "] Generating MAC shares for secret " << i << "\n";
             AdditiveSecretSharing::generateMacShares(m_secrets[i], m_global_mac_key, m_totalParties, m_macShares[i]);
         }
+        #if defined(ENABLE_UNIT_TESTS)
+        // Reconstrcut the MAC shares and print the results
+        for (int i = 0; i < NUM_SECRETS; ++i) {
+            ShareType macShare = AdditiveSecretSharing::newBigInt();
+            AdditiveSecretSharing::reconstructSecret(m_macShares[i], macShare);
+            std::cout << "[Party " << m_partyId << "] Reconstructed MAC share for secret " << i << ": " << BN_bn2dec(macShare) << "\n";
+            BN_free(macShare);
+        }
+        #endif
         #endif 
 
         // Broadcast the shares to all parties

@@ -26,7 +26,7 @@
 // Uncomment the following line to enable cout statements
 // #define ENABLE_COUT
 
-// #define ENABLE_UNIT_TESTS
+#define ENABLE_UNIT_TESTS
 
 #define ENABLE_FINAL_RESULT
 #define ENABLE_MALICIOUS_SECURITY

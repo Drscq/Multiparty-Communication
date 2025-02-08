@@ -31,7 +31,12 @@ public:
         if (m_myPartialSum) BN_free(m_myPartialSum);
         if (m_global_mac_key) BN_free(m_global_mac_key);
         for (auto &secret : m_secrets) {
-            BN_free(secret);
+            if (secret) BN_free(secret);
+        }
+        for (auto &shares : m_macShares) {
+            for (auto &share : shares) {
+                if (share) BN_free(share);
+            }
         }
     }
 
