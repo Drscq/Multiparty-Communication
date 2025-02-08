@@ -32,6 +32,14 @@ public:
      * @param sharesOut Vector to store the generated shares (size = numParties).
      */
     static void generateShares(ShareType secret, int numParties, std::vector<ShareType>& sharesOut);
+    /**
+     * @brief Generates n additive shares of multiplication of secret with a mac key, mod PRIME_MODULUS.
+     * @param secret The original secret value in [0..PRIME_MODULUS-1].
+     * @param macKey The global MAC key for this party.
+     * @param numParties Number of shares/parties.
+     * @param sharesOut Vector to store the generated shares (size = numParties).
+     */
+    static void generateMacShares(ShareType secret, ShareType macKey, PARTY_ID_T numParties, std::vector<ShareType>& sharesOut);
 
     /**
      * @brief Reconstructs the secret from shares, mod PRIME_MODULUS.

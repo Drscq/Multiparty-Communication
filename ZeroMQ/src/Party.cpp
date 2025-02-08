@@ -44,21 +44,31 @@ void Party::init() {
     std::cout << "[Party " << m_partyId << "] init called.\n";
     #endif
     if (m_hasSecret) {
+        // Generate the global key to be used for MAC values
+        #if defined(ENABLE_MALICIOUS_SECURITY)
+        m_global_mac_key = AdditiveSecretSharing::newBigInt();
+        BN_rand_range(m_global_mac_key, AdditiveSecretSharing::getPrime());
+        #if defined(ENABLE_UNIT_TESTS)
+        std::cout << "[Party " << m_partyId << "] Global MAC key: " << BN_bn2dec(m_global_mac_key) << "\n";
+        #endif
+        #endif
+
         this->broadcastAllData(&CMD_SEND_SHARES, sizeof(CMD_T));
         // Prepare the ShareType secrets for this party by initialing two secrets into the ShareType array
-        std::vector<ShareType> secrets;
+        // std::vector<ShareType> secrets;
         for (int i = 0; i < NUM_SECRETS; ++i) {
             ShareType secret_share_type = AdditiveSecretSharing::newBigInt();
             BN_set_word(secret_share_type, m_localValue + i);
             // secrets.push_back(secret_share_type);
-            secrets.emplace_back(secret_share_type);
+            // secrets.emplace_back(secret_share_type);
+            m_secrets[i] = secret_share_type;
             #if defined(ENABLE_COUT)
             std::cout << "[Party " << m_partyId << "] Secret share type value: " << BN_bn2dec(secret_share_type) << "\n";
             #endif
         }
         // Generate shares for the secrets
         std::unordered_map<ShareType, std::vector<ShareType>> shares;
-        this->generateMyShares(secrets, shares);
+        this->generateMyShares(m_secrets, shares);
         #if defined(ENABLE_UNIT_TESTS)
         // Cout the Shares 
         for (auto &secret : shares) {
@@ -68,17 +78,20 @@ void Party::init() {
             }
         }
         #endif
-        // Free the secrets
-        for (auto &secret : secrets) {
-            BN_free(secret);
+        #if defined(ENABLE_MALICIOUS_SECURITY)
+        // Generate the MAC secret with its corresponding shares
+        for (int i = 0; i < NUM_SECRETS; ++i) {
+            std::cout << "[Party " << m_partyId << "] Generating MAC shares for secret " << i << "\n";
+            AdditiveSecretSharing::generateMacShares(m_secrets[i], m_global_mac_key, m_totalParties, m_macShares[i]);
         }
+        #endif 
 
         // Broadcast the shares to all parties
         for (PARTY_ID_T j = 1; j <= m_totalParties; ++j) {
             // Serialize each share separately and send as a structured message
             std::ostringstream shareStream;
             for (int i = 0; i < NUM_SECRETS; ++i) {
-                shareStream << serializeShare(shares[secrets[i]][j - 1]);
+                shareStream << serializeShare(shares[m_secrets[i]][j - 1]);
                 if (i < NUM_SECRETS - 1) {
                     shareStream << "|"; // Delimiter between shares
                 }

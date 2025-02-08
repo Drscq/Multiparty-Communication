@@ -65,6 +65,15 @@ void AdditiveSecretSharing::generateShares(ShareType secret, int numParties, std
     BN_free(sumSoFar);
 }
 
+void AdditiveSecretSharing::generateMacShares(ShareType secret, ShareType macKey, PARTY_ID_T numParties, std::vector<ShareType>& sharesOut) {
+    sharesOut.resize(numParties);
+
+    ShareType macSecret = newBigInt();
+    BN_mod_mul(macSecret, secret, macKey, getPrime(), getCtx());
+    generateShares(macSecret, numParties, sharesOut);
+    BN_free(macSecret);
+}
+
 void AdditiveSecretSharing::reconstructSecret(const std::vector<ShareType>& shares, ShareType &result) {
     BIGNUM* total = newBigInt();
     for (auto s : shares) {
