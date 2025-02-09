@@ -135,6 +135,10 @@ public:
 
     // A place to store the triple share we receive
     BeaverTriple myTriple;
+    // A place to store the triple mac share we receive
+    #if defined(ENABLE_MALICIOUS_SECURITY)
+    BeaverTriple myTripleMac;
+    #endif // ENABLE_MALICIOUS_SECURITY
 
     // Distribute a random triple [a], [b], [c=a*b] among all parties
     void distributeBeaverTriple();
