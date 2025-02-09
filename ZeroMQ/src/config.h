@@ -31,7 +31,7 @@
 #define ENABLE_UNIT_TESTS
 
 #define ENABLE_FINAL_RESULT
-#define ENABLE_MALICIOUS_SECURITY
+// #define ENABLE_MALICIOUS_SECURITY
 
 #define CMD_T uint8_t
 const CMD_T CMD_SEND_SHARES = 0;
@@ -42,5 +42,6 @@ const CMD_T CMD_MULTIPLICATION = 4;
 const CMD_T CMD_FETCH_MULT_SHARE = 5;
 // Define the number of secrets as a constant or retrieve dynamically
 const int NUM_SECRETS = 2;
+const int NUM_TWO = 2;
 
 #endif // CONFIG_H

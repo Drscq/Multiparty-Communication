@@ -26,6 +26,12 @@ public:
             #if defined(ENABLE_MALICIOUS_SECURITY)
             m_macShares.resize(NUM_SECRETS);
             m_global_mac_key = AdditiveSecretSharing::newBigInt();
+            m_addition_partial_sum.resize(NUM_TWO);
+            for (int i = 0; i < NUM_TWO; ++i) {
+                m_addition_partial_sum[i].resize(m_totalParties);
+            }
+            m_secret_sum = AdditiveSecretSharing::newBigInt();
+            m_secret_sum_mac = AdditiveSecretSharing::newBigInt();
             #endif // ENABLE_MALICIOUS_SECURITY
             m_secrets.resize(NUM_SECRETS);
           }
@@ -182,6 +188,10 @@ private:
     ShareType m_global_mac_key;
     #if defined(ENABLE_MALICIOUS_SECURITY)
     std::vector<std::vector<ShareType>> m_macShares;
+    // Addition operation
+    std::vector<std::vector<ShareType>> m_addition_partial_sum;
+    ShareType m_secret_sum;
+    ShareType m_secret_sum_mac;
     #endif // ENABLE_MALICIOUS_SECURITY
     std::vector<ShareType> m_secrets;
 };

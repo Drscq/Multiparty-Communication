@@ -24,6 +24,13 @@ Party::~Party() {
                 if (share) BN_free(share);
             }
         }
+        for (auto &shares : m_addition_partial_sum) {
+            for (auto &share : shares) {
+                if (share) BN_free(share);
+            }
+        }
+        if (m_secret_sum) BN_free(m_secret_sum);
+        if (m_secret_sum_mac) BN_free(m_secret_sum_mac);
         #endif // ENABLE_MALICIOUS_SECURITY
     }
 }
@@ -151,32 +158,87 @@ void Party::init() {
                 std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
             }
         }
-        // this->broadcastAllData(&CMD_ADDITION, sizeof(CMD_T));
-        // std::vector<ShareType> receivedParitialSums(m_totalParties);
-        // for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-        //     char buffer[BUFFER_SIZE];
-        //     size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
-        //     if (bytesRead > 0) {
-        //         std::string partialSumStr(buffer, bytesRead);
-        //         ShareType partialSum = deserializeShare(partialSumStr);
-        //         receivedParitialSums[i - 1] = partialSum;
-        //     }
-        // }
-        // // check the received partial sums
-        // #if defined(ENABLE_UNIT_TESTS)
-        // for (auto &partialSum : receivedParitialSums) {
-        //     std::cout << "[Party " << m_partyId << "] Received partial sum from Party " << BN_bn2dec(partialSum) << "\n";
-        // }
-        // #endif
-        // // Reconstruct the global sum
-        // ShareType globalSum = AdditiveSecretSharing::newBigInt();
-        // AdditiveSecretSharing::reconstructSecret(receivedParitialSums, globalSum);
-        // // Print the global sum
-        // #if defined(ENABLE_FINAL_RESULT)
-        // std::cout << "[Party " << m_partyId << "] Global sum: " << BN_bn2dec(globalSum) << "\n";
-        // #endif
-        // // Free the global sum
-        // BN_free(globalSum);
+        this->broadcastAllData(&CMD_ADDITION, sizeof(CMD_T));
+        #if defined(ENABLE_MALICIOUS_SECURITY)
+        std::vector<ShareType> receivedSecretPartialSumShares(m_totalParties);
+        std::vector<ShareType> receivedMacPartialSumShares(m_totalParties);
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            char buffer[BUFFER_SIZE];
+            size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
+            if (bytesRead == 0) {
+                throw std::runtime_error("Received empty message from Party " + std::to_string(i));
+            }
+            // Split the received message into secret and MAC shares
+            std::string partialSumStr(buffer, bytesRead);
+            std::vector<std::string> shareParts;
+            std::stringstream ss(partialSumStr);
+            std::string item;
+            while (std::getline(ss, item, '|')) {
+                if (!item.empty()) {
+                    shareParts.push_back(item);
+                }
+            }
+            if (shareParts.size() != 2) {
+                throw std::runtime_error("Received invalid number of shares from Party " + std::to_string(i));
+            }
+            // Deserialize the secret and MAC shares
+            for (int ii = 0; ii < NUM_TWO; ++ii) {
+                m_addition_partial_sum[ii][i - 1] = deserializeShare(shareParts[ii]);
+            }
+        }
+        #if defined(ENABLE_UNIT_TESTS)
+        // check the received partial sums
+        for (int i = 0; i < NUM_TWO; ++i) {
+            if (i == 0) {
+                std::cout << "Partial secrets sum " << std::endl;
+            } else {
+                std::cout << "Partial MAC sum " << std::endl;
+            }
+            for (PARTY_ID_T j = 1; j <= m_totalParties; ++j) {
+                std::cout << "[Party " << m_partyId << "] Received partial sum " << i << " from Party " << j << ": " << BN_bn2dec(m_addition_partial_sum[i][j - 1]) << "\n";
+            }
+        }
+        #endif
+        // Reconstruct the global sum for the secrets and MAC shares
+        AdditiveSecretSharing::reconstructSecret(m_addition_partial_sum[0], m_secret_sum);
+        AdditiveSecretSharing::reconstructSecret(m_addition_partial_sum[1], m_secret_sum_mac);
+        // Print the global sum
+        #if defined(ENABLE_FINAL_RESULT)
+        std::cout << "[Party " << m_partyId << "] Global secret sum: " << BN_bn2dec(m_secret_sum) << "\n";
+        std::cout << "[Party " << m_partyId << "] Global MAC sum: " << BN_bn2dec(m_secret_sum_mac) << "\n";
+        #endif
+        // use the assert to check the equality of the m_global_mac_key * m_secret_sum and m_secret_sum_mac
+        ShareType macProduct = AdditiveSecretSharing::newBigInt();
+        BN_mod_mul(macProduct, m_global_mac_key, m_secret_sum, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+        assert(BN_cmp(macProduct, m_secret_sum_mac) == 0 && "The MAC product is not equal to the MAC sum");
+        BN_free(macProduct);
+        #else
+        std::vector<ShareType> receivedParitialSums(m_totalParties);
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            char buffer[BUFFER_SIZE];
+            size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
+            if (bytesRead > 0) {
+                std::string partialSumStr(buffer, bytesRead);
+                ShareType partialSum = deserializeShare(partialSumStr);
+                receivedParitialSums[i - 1] = partialSum;
+            }
+        }
+        // check the received partial sums
+        #if defined(ENABLE_UNIT_TESTS)
+        for (auto &partialSum : receivedParitialSums) {
+            std::cout << "[Party " << m_partyId << "] Received partial sum from Party " << BN_bn2dec(partialSum) << "\n";
+        }
+        #endif
+        // Reconstruct the global sum
+        ShareType globalSum = AdditiveSecretSharing::newBigInt();
+        AdditiveSecretSharing::reconstructSecret(receivedParitialSums, globalSum);
+        // Print the global sum
+        #if defined(ENABLE_FINAL_RESULT)
+        std::cout << "[Party " << m_partyId << "] Global sum: " << BN_bn2dec(globalSum) << "\n";
+        #endif
+        // Free the global sum
+        BN_free(globalSum);
+        #endif
         // this->broadcastAllData(&CMD_MULTIPLICATION, sizeof(CMD_T));
         // this->distributeBeaverTriple();
         // // Sync after distributing shares
@@ -881,10 +943,18 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
         #endif // ENABLE_UNIT_TESTS
         // Reply the serialized sum back to the sender
         std::string sumStr = serializeShare(sum_result);
+        #if defined(ENABLE_MALICIOUS_SECURITY)
+        ShareType mac_result = AdditiveSecretSharing::newBigInt();
+        AdditiveSecretSharing::addShares(m_receivedMacShares, mac_result);
+        sumStr += "|" + serializeShare(mac_result);
+        #endif
         m_comm->reply(sumStr.c_str(), sumStr.size());
 
         // Clean up
         BN_free(sum_result);
+        #if defined(ENABLE_MALICIOUS_SECURITY)
+        BN_free(mac_result);
+        #endif
     } else if (cmd == CMD_MULTIPLICATION) {
         #if defined(ENABLE_UNIT_TESTS)
         std::cout << "[Party " << m_partyId << "] Received command to perform multiplication from Party " 
