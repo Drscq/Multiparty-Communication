@@ -23,22 +23,14 @@ public:
           m_comm(comm), m_hasSecret(hasSecret), m_operation(operation) {
             // Party5_to_1
             m_dealRouterId = "Party" + std::to_string(m_totalParties + 1) + "_to_" + std::to_string(m_partyId);
+            #if defined(ENABLE_MALICIOUS_SECURITY)
             m_macShares.resize(NUM_SECRETS);
+            m_global_mac_key = AdditiveSecretSharing::newBigInt();
+            #endif // ENABLE_MALICIOUS_SECURITY
             m_secrets.resize(NUM_SECRETS);
           }
     // Destrcutor to free the BIGNUMs
-    ~Party() {
-        if (m_myPartialSum) BN_free(m_myPartialSum);
-        if (m_global_mac_key) BN_free(m_global_mac_key);
-        for (auto &secret : m_secrets) {
-            if (secret) BN_free(secret);
-        }
-        for (auto &shares : m_macShares) {
-            for (auto &share : shares) {
-                if (share) BN_free(share);
-            }
-        }
-    }
+    ~Party();
 
     /**
      * @brief Initializes any necessary communication steps (already done in main usually).
@@ -180,11 +172,16 @@ private:
     CMD_T m_cmd;
     bool m_running = true;
     std::vector<ShareType> m_receivedShares;
+    #if defined(ENABLE_MALICIOUS_SECURITY)
+    std::vector<ShareType> m_receivedMacShares;
+    #endif // ENABLE_MALICIOUS_SECURITY
     std::vector<ShareType> m_receivedMultiplicationShares;
     ShareType m_z_i;
     // Party5_to_1
     std::string m_dealRouterId;
     ShareType m_global_mac_key;
+    #if defined(ENABLE_MALICIOUS_SECURITY)
     std::vector<std::vector<ShareType>> m_macShares;
+    #endif // ENABLE_MALICIOUS_SECURITY
     std::vector<ShareType> m_secrets;
 };

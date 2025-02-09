@@ -9,6 +9,8 @@
 // Use a fixed 32-bit unsigned integer for data lengths
 #define LENGTH_T uint32_t
 
+#define SIZE_T long unsigned int
+
 // A 128-bit prime (example, not guaranteed prime):
 #define PRIME_128_STR "340282366920938463463374607431768211507"
 
@@ -38,8 +40,6 @@ const CMD_T CMD_SHUTDOWN = 2;
 const CMD_T CMD_ADDITION = 3;
 const CMD_T CMD_MULTIPLICATION = 4;
 const CMD_T CMD_FETCH_MULT_SHARE = 5;
-
-
 // Define the number of secrets as a constant or retrieve dynamically
 const int NUM_SECRETS = 2;
 
