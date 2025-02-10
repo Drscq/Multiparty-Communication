@@ -36,6 +36,7 @@ public:
             m_rho = AdditiveSecretSharing::newBigInt();
             m_z_i_mac = AdditiveSecretSharing::newBigInt();
             m_global_key_share = AdditiveSecretSharing::newBigInt();
+            m_receivedMultiplicationMacShares.resize(m_totalParties);
             #endif // ENABLE_MALICIOUS_SECURITY
             m_secrets.resize(NUM_SECRETS);
           }
