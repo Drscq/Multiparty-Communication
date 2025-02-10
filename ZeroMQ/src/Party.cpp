@@ -297,6 +297,7 @@ void Party::init() {
         std::cout << "[Party " << m_partyId << "] Final product: " << BN_bn2dec(product) << "\n";
         #endif
         #if defined(ENABLE_MALICIOUS_SECURITY)
+        // Receive the MAC shares from all parties and Check the MAC product
         for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
             #if defined(ENABLE_UNIT_TESTS)
             std::cout << "[Party " << m_partyId << "] Receiving MAC shares from Party " << i << "\n";
@@ -321,11 +322,12 @@ void Party::init() {
             #if defined(ENABLE_FINAL_RESULT)
             std::cout << "[Party " << m_partyId << "] Final MAC product: " << BN_bn2dec(macProduct) << "\n";
             #endif
-        BN_free(macProduct);
         // assert the equality of the product multiplied by the global MAC key and the MAC product
         ShareType macProductCheck = AdditiveSecretSharing::newBigInt();
         BN_mod_mul(macProductCheck, product, m_global_mac_key, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
         assert(BN_cmp(macProductCheck, macProduct) == 0 && "The MAC product is not equal to the MAC sum");
+        BN_free(macProduct);
+        BN_free(macProductCheck);
         #endif
 
         BN_free(product);
