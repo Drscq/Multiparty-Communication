@@ -205,8 +205,8 @@ private:
     #endif // ENABLE_MALICIOUS_SECURITY
     // Party5_to_1
     std::string m_dealRouterId;
-    ShareType m_global_mac_key;
     #if defined(ENABLE_MALICIOUS_SECURITY)
+    ShareType m_global_mac_key;
     std::vector<std::vector<ShareType>> m_macShares;
     // Addition operation
     std::vector<std::vector<ShareType>> m_addition_partial_sum;
