@@ -217,32 +217,33 @@ void Party::init() {
         assert(BN_cmp(macAdditionProduct, m_secret_sum_mac) == 0 && "The MAC product is not equal to the MAC sum");
         BN_free(macAdditionProduct);
         #else
-        std::vector<ShareType> receivedParitialSums(m_totalParties);
-        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-            char buffer[BUFFER_SIZE];
-            size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
-            if (bytesRead > 0) {
-                std::string partialSumStr(buffer, bytesRead);
-                ShareType partialSum = deserializeShare(partialSumStr);
-                receivedParitialSums[i - 1] = partialSum;
+            std::vector<ShareType> receivedParitialSums(m_totalParties);
+            for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+                char buffer[BUFFER_SIZE];
+                size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
+                if (bytesRead > 0) {
+                    std::string partialSumStr(buffer, bytesRead);
+                    ShareType partialSum = deserializeShare(partialSumStr);
+                    receivedParitialSums[i - 1] = partialSum;
+                }
             }
-        }
-        // check the received partial sums
-        #if defined(ENABLE_UNIT_TESTS)
-        for (auto &partialSum : receivedParitialSums) {
-            std::cout << "[Party " << m_partyId << "] Received partial sum from Party " << BN_bn2dec(partialSum) << "\n";
-        }
+            // check the received partial sums
+            #if defined(ENABLE_UNIT_TESTS)
+            for (auto &partialSum : receivedParitialSums) {
+                std::cout << "[Party " << m_partyId << "] Received partial sum from Party " << BN_bn2dec(partialSum) << "\n";
+            }
+            #endif
+            // Reconstruct the global sum
+            ShareType globalSum = AdditiveSecretSharing::newBigInt();
+            AdditiveSecretSharing::reconstructSecret(receivedParitialSums, globalSum);
+            // Print the global sum
+            #if defined(ENABLE_FINAL_RESULT)
+            std::cout << "[Party " << m_partyId << "] Global sum: " << BN_bn2dec(globalSum) << "\n";
+            #endif
+            // Free the global sum
+            BN_free(globalSum);
         #endif
-        // Reconstruct the global sum
-        ShareType globalSum = AdditiveSecretSharing::newBigInt();
-        AdditiveSecretSharing::reconstructSecret(receivedParitialSums, globalSum);
-        // Print the global sum
-        #if defined(ENABLE_FINAL_RESULT)
-        std::cout << "[Party " << m_partyId << "] Global sum: " << BN_bn2dec(globalSum) << "\n";
-        #endif
-        // Free the global sum
-        BN_free(globalSum);
-        #endif
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         this->broadcastAllData(&CMD_MULTIPLICATION, sizeof(CMD_T));
         this->distributeBeaverTriple();
         // Sync after distributing shares
