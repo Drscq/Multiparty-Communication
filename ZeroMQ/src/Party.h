@@ -40,10 +40,22 @@ public:
                 m_z_i_mac = AdditiveSecretSharing::newBigInt();
                 m_global_key_share = AdditiveSecretSharing::newBigInt();
                 m_receivedMultiplicationMacShares.resize(m_totalParties);
+                m_receivedMultiplicationSigmaShares.resize(m_totalParties);
+                m_sigma = AdditiveSecretSharing::newBigInt();
+                m_agreed_random_values[0] = AdditiveSecretSharing::newBigInt();
+                BN_dec2bn(&m_agreed_random_values[0], "334719540603455070832504601639945548232");
+                m_agreed_random_values[1] = AdditiveSecretSharing::newBigInt();
+                BN_dec2bn(&m_agreed_random_values[1], "8652507094118376787948708224805105047");
+                    // Check the random values
+                    #if defined(ENABLE_UNIT_TESTS)
+                    for (auto &randomValue : m_agreed_random_values) {
+                        std::cout << "[Party] Random value: " << BN_bn2dec(randomValue) << "\n";
+                    }
+                    #endif
             #endif // ENABLE_MALICIOUS_SECURITY
             m_secrets.resize(NUM_SECRETS);
           }
-    // Destrcutor to free the BIGNUMs
+    // Destructor to free the BIGNUMs
     ~Party();
 
     /**
@@ -188,6 +200,7 @@ private:
     #if defined(ENABLE_MALICIOUS_SECURITY)
     // Helper to generate the MAC key for the multiplication
     void generateZmac(ShareType z_i_mac);
+    void generateBatchZeroShare(ShareType zeroShare);
     #endif // ENABLE_MALICIOUS_SECURITY
 
     bool m_hasSecret;              // Indicates if this party holds a secret
@@ -201,6 +214,7 @@ private:
     std::vector<ShareType> m_receivedMultiplicationShares;
     #if defined(ENABLE_MALICIOUS_SECURITY)
     std::vector<ShareType> m_receivedMultiplicationMacShares;
+    std::vector<ShareType> m_receivedMultiplicationSigmaShares;
     #endif // ENABLE_MALICIOUS_SECURITY
     ShareType m_z_i;
     #if defined(ENABLE_MALICIOUS_SECURITY)
@@ -218,6 +232,8 @@ private:
     // Multiplication operation
     ShareType m_epsilon, m_rho;
     ShareType m_global_key_share;
+    ShareType m_sigma;
+    ShareType m_agreed_random_values[NUM_PARTIALLY_OPEN_VALUES];
     #endif // ENABLE_MALICIOUS_SECURITY
     std::vector<ShareType> m_secrets;
 };

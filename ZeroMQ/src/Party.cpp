@@ -35,6 +35,7 @@ Party::~Party() {
         if (m_rho) BN_free(m_rho);
         // if (m_z_i_mac) BN_free(m_z_i_mac);
         if (m_global_key_share) BN_free(m_global_key_share);
+        if (m_sigma) BN_free(m_sigma);
         #endif // ENABLE_MALICIOUS_SECURITY
     }
 }
@@ -329,6 +330,34 @@ void Party::init() {
         assert(BN_cmp(macProductCheck, macProduct) == 0 && "The MAC product is not equal to the MAC sum");
         BN_free(macProduct);
         BN_free(macProductCheck);
+        // Receive the sigma shares from all parties
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            #if defined(ENABLE_UNIT_TESTS)
+            std::cout << "[Party " << m_partyId << "] Receiving sigma shares from Party " << i << "\n";
+            #endif
+            char buffer[BUFFER_SIZE];
+            size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
+            if (bytesRead > 0) {
+                std::string shareStr(buffer, bytesRead);
+                ShareType share = deserializeShare(shareStr);
+                m_receivedMultiplicationSigmaShares[i - 1] = share;
+            }
+        }
+            #if defined(ENABLE_UNIT_TESTS)
+            std::cout << "Received sigma shares" << std::endl;
+            for (auto &share : m_receivedMultiplicationSigmaShares) {
+                std::cout << "[Party " << m_partyId << "] Received sigma share: " << BN_bn2dec(share) << "\n";
+            }
+            #endif
+        // Reconstruct the sigma product and check it is equal to the zero or not
+        ShareType sigmaProduct = AdditiveSecretSharing::newBigInt();
+        AdditiveSecretSharing::reconstructSecret(m_receivedMultiplicationSigmaShares, sigmaProduct);
+        // Print the final product
+            #if defined(ENABLE_FINAL_RESULT)
+            std::cout << "[Party " << m_partyId << "] Final sigma product: " << BN_bn2dec(sigmaProduct) << "\n";
+            #endif
+        // assert the equality of the sigma product and the zero
+        assert(BN_is_zero(sigmaProduct) && "The sigma product is not equal to zero");
         #endif
 
         BN_free(product);
@@ -787,7 +816,7 @@ void Party::receiveBeaverTriple()
     myTripleMac.a = deserializeShare(macAHex);
     myTripleMac.b = deserializeShare(macBHex);
     myTripleMac.c = deserializeShare(macCHex);
-    m_global_mac_key = deserializeShare(globalMacKeyHex);
+    m_global_key_share = deserializeShare(globalMacKeyHex);
     #endif
 
     #ifdef ENABLE_COUT
@@ -1063,7 +1092,7 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
             std::cout << "  macA: " << BN_bn2dec(myTripleMac.a) << "\n";
             std::cout << "  macB: " << BN_bn2dec(myTripleMac.b) << "\n";
             std::cout << "  macC: " << BN_bn2dec(myTripleMac.c) << "\n";
-            std::cout << "  globalMacKey: " << BN_bn2dec(m_global_mac_key) << "\n";
+            std::cout << "  globalMacKeyShare: " << BN_bn2dec(m_global_key_share) << "\n";
             #endif
         #endif // ENABLE_UNIT_TESTS
         this->doMultiplicationDemo(m_z_i);
@@ -1091,6 +1120,12 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
         std::string zMacStr = serializeShare(m_z_i_mac);
         m_comm->reply(zMacStr.c_str(), zMacStr.size());
         BN_free(m_z_i_mac);
+        generateBatchZeroShare(m_sigma);
+            #if defined(ENABLE_UNIT_TESTS)
+            std::cout << "[Party " << m_partyId << "] m_sigma: " << BN_bn2dec(m_sigma) << "\n";
+            #endif
+        std::string sigmaStr = serializeShare(m_sigma);
+        m_comm->reply(sigmaStr.c_str(), sigmaStr.size());
         #endif
     } else {
         std::cerr << "[Party " << m_partyId << "] Unknown command received from Party " 
@@ -1157,9 +1192,43 @@ void Party::generateZmac(ShareType z_i_mac) {
     // m_rho * myTripleMac.a
     BN_mod_mul(temp, m_rho, myTripleMac.a, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
     BN_mod_add(z_i_mac, z_i_mac, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
-    // m_epsilon * m_rho * m_global_mac_key
+    // m_epsilon * m_rho * m_global_key_share
     BN_mod_mul(temp, m_epsilon, m_rho, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
-    BN_mod_mul(temp, temp, m_global_mac_key, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    BN_mod_mul(temp, temp, m_global_key_share, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
     BN_mod_add(z_i_mac, z_i_mac, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+}
+
+void Party::generateBatchZeroShare(ShareType zeroShare) {
+    // check if zeroShare is null
+    if (!zeroShare) throw std::runtime_error("zeroShare is null.");
+    BN_zero(zeroShare);
+    std::cout << "The value of zeroShare is: " << BN_bn2dec(zeroShare) << "\n";
+    ShareType temp = AdditiveSecretSharing::newBigInt();
+    // m_receivedMacShares[0] - myTripleMac.a
+    BN_mod_sub(temp, m_receivedMacShares[0], myTripleMac.a, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // r_epsilon * (m_receivedMacShares[0] - myTripleMac.a)
+    BN_mod_mul(temp, m_agreed_random_values[0], temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // zeroShare += temp
+    BN_mod_add(zeroShare, zeroShare, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // m_receivedMacShares[1] - myTripleMac.b
+    BN_mod_sub(temp, m_receivedMacShares[1], myTripleMac.b, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // r_rho * (m_receivedMacShares[0] - myTripleMac.a)
+    BN_mod_mul(temp, m_agreed_random_values[1], temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // zeroShare += temp
+    BN_mod_add(zeroShare, zeroShare, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // r_epsilon * m_epsilon
+    BN_mod_mul(temp, m_agreed_random_values[0], m_epsilon, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // ShareType temp2 = AdditiveSecretSharing::newBigInt() \gets r_rho * m_rho
+    ShareType temp2 = AdditiveSecretSharing::newBigInt();
+    BN_mod_mul(temp2, m_agreed_random_values[1], m_rho, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // temp += temp2
+    BN_mod_add(temp, temp, temp2, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // temp *= m_global_mac_key_share
+    BN_mod_mul(temp, temp, m_global_key_share, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // zeroShare -= temp
+    BN_mod_sub(zeroShare, zeroShare, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // Free the temporary ShareType
+    BN_free(temp2);
+    BN_free(temp);
 }
 #endif
