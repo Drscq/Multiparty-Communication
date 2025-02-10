@@ -5,10 +5,7 @@
 #include "config.h"
 #include <openssl/bn.h>
 
-/**
- * @brief Type used for secret shares with big integers.
- */
-using ShareType = BIGNUM*;
+
 
 /**
  * @brief Struct or class to represent a Beaver Triple (a, b, c).

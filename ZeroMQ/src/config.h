@@ -16,7 +16,11 @@
 
 // Add OpenSSL include for BN_*
 #include <openssl/bn.h>
-
+#include <vector> 
+/**
+ * @brief Type used for secret shares with big integers.
+ */
+using ShareType = BIGNUM*;
 // Add more macros as needed, for example:
 // #define PORT_T uint16_t
 
@@ -44,4 +48,6 @@ const CMD_T CMD_FETCH_MULT_SHARE = 5;
 const int NUM_SECRETS = 2;
 const int NUM_TWO = 2;
 const int NUM_PARTIALLY_OPEN_VALUES = 2;
+
+static std::vector<ShareType> AGREE_RANDOM_VALUES;
 #endif // CONFIG_H

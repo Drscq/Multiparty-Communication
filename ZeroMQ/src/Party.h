@@ -40,11 +40,6 @@ public:
                 m_z_i_mac = AdditiveSecretSharing::newBigInt();
                 m_global_key_share = AdditiveSecretSharing::newBigInt();
                 m_receivedMultiplicationMacShares.resize(m_totalParties);
-                m_agreed_random_values.resize(NUM_PARTIALLY_OPEN_VALUES);
-                for (int i = 0; i < NUM_PARTIALLY_OPEN_VALUES; ++i) {
-                    m_agreed_random_values[i] = AdditiveSecretSharing::newBigInt();
-                    BN_rand_range(m_agreed_random_values[i], AdditiveSecretSharing::getPrime());
-                }
             #endif // ENABLE_MALICIOUS_SECURITY
             m_secrets.resize(NUM_SECRETS);
           }
@@ -223,7 +218,6 @@ private:
     // Multiplication operation
     ShareType m_epsilon, m_rho;
     ShareType m_global_key_share;
-    std::vector<ShareType> m_agreed_random_values;
     #endif // ENABLE_MALICIOUS_SECURITY
     std::vector<ShareType> m_secrets;
 };
