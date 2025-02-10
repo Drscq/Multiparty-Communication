@@ -335,9 +335,6 @@ void Party::init() {
 
         this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {
-        m_receivedShares.reserve(NUM_SECRETS);
-        m_receivedShares.resize(NUM_SECRETS);
-        m_z_i = AdditiveSecretSharing::newBigInt();
         this->runEventLoop();
     }
 

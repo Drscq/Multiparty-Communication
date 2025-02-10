@@ -23,6 +23,9 @@ public:
           m_comm(comm), m_hasSecret(hasSecret), m_operation(operation) {
             // Party5_to_1
             m_dealRouterId = "Party" + std::to_string(m_totalParties + 1) + "_to_" + std::to_string(m_partyId);
+            m_receivedShares.reserve(NUM_SECRETS);
+            m_receivedShares.resize(NUM_SECRETS);
+            m_z_i = AdditiveSecretSharing::newBigInt();
             #if defined(ENABLE_MALICIOUS_SECURITY)
                 m_macShares.resize(NUM_SECRETS);
                 m_global_mac_key = AdditiveSecretSharing::newBigInt();
