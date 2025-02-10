@@ -11,6 +11,16 @@
 
 int main(int argc, char* argv[])
 {
+    AGREE_RANDOM_VALUES[0] = AdditiveSecretSharing::newBigInt();
+    BN_dec2bn(&AGREE_RANDOM_VALUES[0], "334719540603455070832504601639945548232");
+    AGREE_RANDOM_VALUES[1] = AdditiveSecretSharing::newBigInt();
+    BN_dec2bn(&AGREE_RANDOM_VALUES[1], "8652507094118376787948708224805105047");
+        // Check the random values
+        #if defined(ENABLE_UNIT_TESTS)
+        for (auto &randomValue : AGREE_RANDOM_VALUES) {
+            std::cout << "[Main] Random value: " << BN_bn2dec(randomValue) << "\n";
+        }
+        #endif
     if (argc < 7) {
         std::cerr << "Usage: " << argv[0] << " <mode> <party_id> <num_parties> <input_value> <has_secret> <operation>\n";
         std::cerr << "Modes: reqrep, dealerrouter" << std::endl;
@@ -26,17 +36,6 @@ int main(int argc, char* argv[])
     if (hasSecretFlag == 1) {
         // #if defined(ENABLE_COUT)
         std::cout << "[Party " << myPartyId << "] Starting with input value: " << inputValue << "\n";
-        AGREE_RANDOM_VALUES.resize(NUM_PARTIALLY_OPEN_VALUES);
-        for (int i = 0; i < NUM_PARTIALLY_OPEN_VALUES; ++i) {
-            AGREE_RANDOM_VALUES[i] = AdditiveSecretSharing::newBigInt();
-            BN_rand_range(AGREE_RANDOM_VALUES[i], AdditiveSecretSharing::getPrime());
-        }
-        // Check the random values
-        #if defined(ENABLE_UNIT_TESTS)
-        for (auto &randomValue : AGREE_RANDOM_VALUES) {
-            std::cout << "[Main] Random value: " << BN_bn2dec(randomValue) << "\n";
-        }
-        #endif
         // #endif
     } 
 

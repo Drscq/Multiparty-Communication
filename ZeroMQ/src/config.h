@@ -49,5 +49,5 @@ const int NUM_SECRETS = 2;
 const int NUM_TWO = 2;
 const int NUM_PARTIALLY_OPEN_VALUES = 2;
 
-static std::vector<ShareType> AGREE_RANDOM_VALUES;
+static std::vector<ShareType> AGREE_RANDOM_VALUES(NUM_PARTIALLY_OPEN_VALUES);
 #endif // CONFIG_H
