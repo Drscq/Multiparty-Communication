@@ -31,6 +31,10 @@ Party::~Party() {
         }
         if (m_secret_sum) BN_free(m_secret_sum);
         if (m_secret_sum_mac) BN_free(m_secret_sum_mac);
+        if (m_epsilon) BN_free(m_epsilon);
+        if (m_rho) BN_free(m_rho);
+        if (m_z_i_mac) BN_free(m_z_i_mac);
+        if (m_global_key_share) BN_free(m_global_key_share);
         #endif // ENABLE_MALICIOUS_SECURITY
     }
 }
@@ -248,46 +252,46 @@ void Party::init() {
                 std::cout << "[distributeBeaverTriple][Party " << m_partyId << "] Received success from Party " << i << "\n";
             }
         }
-        //  // Sync after distributing shares
-        // for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-        //     m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
-        //     if (m_cmd == CMD_SUCCESS) {
-        //         std::cout << "[MultipliationDone][Party " << m_partyId << "] Received success from Party " << i << "\n";
-        //     }
-        // }
-        // // make a pause to allow the dealer to send the triple shares
-        // // std::this_thread::sleep_for(std::chrono::seconds(2));
-        // this->broadcastAllData(&CMD_FETCH_MULT_SHARE, sizeof(CMD_T));
-        // // Sync after distributing shares
-        // for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-        //     m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
-        //     if (m_cmd == CMD_SUCCESS) {
-        //         std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
-        //     }
-        // }
-        // m_receivedMultiplicationShares.reserve(m_totalParties);
-        // m_receivedMultiplicationShares.resize(m_totalParties);
-        // for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
-        //     std::cout << "[Party " << m_partyId << "] Receiving multiplication shares from Party " << i << "\n";
-        //     char buffer[BUFFER_SIZE];
-        //     size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
-        //     if (bytesRead > 0) {
-        //         std::string shareStr(buffer, bytesRead);
-        //         ShareType share = deserializeShare(shareStr);
-        //         m_receivedMultiplicationShares[i - 1] = share;
-        //     }
-        // }
-        // // Check the values in the multiplication shares
-        // for (auto &share : m_receivedMultiplicationShares) {
-        //     std::cout << "[Party " << m_partyId << "] Received multiplication share: " << BN_bn2dec(share) << "\n";
-        // }
-        // // Use the multiplication shares to compute the final product
-        // ShareType product = AdditiveSecretSharing::newBigInt();
-        // AdditiveSecretSharing::reconstructSecret(m_receivedMultiplicationShares, product);
-        // // Print the final product
-        // #if defined(ENABLE_FINAL_RESULT)
-        // std::cout << "[Party " << m_partyId << "] Final product: " << BN_bn2dec(product) << "\n";
-        // #endif
+         // Sync after distributing shares
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
+            if (m_cmd == CMD_SUCCESS) {
+                std::cout << "[MultipliationDone][Party " << m_partyId << "] Received success from Party " << i << "\n";
+            }
+        }
+        // make a pause to allow the dealer to send the triple shares
+        // std::this_thread::sleep_for(std::chrono::seconds(2));
+        this->broadcastAllData(&CMD_FETCH_MULT_SHARE, sizeof(CMD_T));
+        // Sync after distributing shares
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            m_comm->dealerReceive(i, &m_cmd, sizeof(CMD_T));
+            if (m_cmd == CMD_SUCCESS) {
+                std::cout << "[Party " << m_partyId << "] Received success from Party " << i << "\n";
+            }
+        }
+        m_receivedMultiplicationShares.reserve(m_totalParties);
+        m_receivedMultiplicationShares.resize(m_totalParties);
+        for (PARTY_ID_T i = 1; i <= m_totalParties; ++i) {
+            std::cout << "[Party " << m_partyId << "] Receiving multiplication shares from Party " << i << "\n";
+            char buffer[BUFFER_SIZE];
+            size_t bytesRead = m_comm->dealerReceive(i, buffer, sizeof(buffer));
+            if (bytesRead > 0) {
+                std::string shareStr(buffer, bytesRead);
+                ShareType share = deserializeShare(shareStr);
+                m_receivedMultiplicationShares[i - 1] = share;
+            }
+        }
+        // Check the values in the multiplication shares
+        for (auto &share : m_receivedMultiplicationShares) {
+            std::cout << "[Party " << m_partyId << "] Received multiplication share: " << BN_bn2dec(share) << "\n";
+        }
+        // Use the multiplication shares to compute the final product
+        ShareType product = AdditiveSecretSharing::newBigInt();
+        AdditiveSecretSharing::reconstructSecret(m_receivedMultiplicationShares, product);
+        // Print the final product
+        #if defined(ENABLE_FINAL_RESULT)
+        std::cout << "[Party " << m_partyId << "] Final product: " << BN_bn2dec(product) << "\n";
+        #endif
 
         this->broadcastAllData(&CMD_SHUTDOWN, sizeof(CMD_T));
     } else {
@@ -629,6 +633,9 @@ void Party::distributeBeaverTriple()
     AdditiveSecretSharing::generateMacShares(a, m_global_mac_key, m_totalParties, macAShares);
     AdditiveSecretSharing::generateMacShares(b, m_global_mac_key, m_totalParties, macBShares);
     AdditiveSecretSharing::generateMacShares(c, m_global_mac_key, m_totalParties, macCShares);
+    // Generate the shares of global key
+    std::vector<ShareType> globalMacKeyShares;
+    AdditiveSecretSharing::generateShares(m_global_mac_key, m_totalParties, globalMacKeyShares);
     #endif
 
     // 4) Broadcast each share to the correct party
@@ -644,7 +651,8 @@ void Party::distributeBeaverTriple()
         std::string macAMsg = serializeShare(macAShares[pid-1]);
         std::string macBMsg = serializeShare(macBShares[pid-1]);
         std::string macCMsg = serializeShare(macCShares[pid-1]);
-        tripleMsg += "|" + macAMsg + "|" + macBMsg + "|" + macCMsg;
+        std::string globalMacKeyMsg = serializeShare(globalMacKeyShares[pid-1]);
+        tripleMsg += "|" + macAMsg + "|" + macBMsg + "|" + macCMsg + "|" + globalMacKeyMsg;
         #endif
 
         // Send shares to other parties
@@ -677,9 +685,12 @@ void Party::distributeBeaverTriple()
     for (auto bn : aShares) BN_free(bn);
     for (auto bn : bShares) BN_free(bn);
     for (auto bn : cShares) BN_free(bn);
+    #if defined(ENABLE_MALICIOUS_SECURITY)
     for (auto bn : macAShares) BN_free(bn);
     for (auto bn : macBShares) BN_free(bn);
     for (auto bn : macCShares) BN_free(bn);
+    for (auto bn : globalMacKeyShares) BN_free(bn);
+    #endif 
 }
 
 // Modify receiveBeaverTriple to ensure it only accepts triples from Party with BeaverTriple
@@ -708,8 +719,9 @@ void Party::receiveBeaverTriple()
     auto sep3 = tripleMsg.find('|', sep2 + 1);
     auto sep4 = tripleMsg.find('|', sep3 + 1);
     auto sep5 = tripleMsg.find('|', sep4 + 1);
-    if (sep1 == std::string::npos || sep2 == std::string::npos || sep3 == std::string::npos || sep4 == std::string::npos || sep5 == std::string::npos) {
-        throw std::runtime_error("Invalid triple format received");
+    auto sep6 = tripleMsg.find('|', sep5 + 1);
+    if (sep1 == std::string::npos || sep2 == std::string::npos || sep3 == std::string::npos || sep4 == std::string::npos || sep5 == std::string::npos || sep6 == std::string::npos) {
+        throw std::runtime_error("Invalid Beaver triple format received");
     }
     std::string aHex = tripleMsg.substr(0, sep1);
     std::string bHex = tripleMsg.substr(sep1 + 1, sep2 - (sep1 + 1));
@@ -717,6 +729,7 @@ void Party::receiveBeaverTriple()
     std::string macAHex = tripleMsg.substr(sep3 + 1, sep4 - (sep3 + 1));
     std::string macBHex = tripleMsg.substr(sep4 + 1, sep5 - (sep4 + 1));
     std::string macCHex = tripleMsg.substr(sep5 + 1);
+    std::string globalMacKeyHex = tripleMsg.substr(sep6 + 1);
     #else
     // Parse "aHex|bHex|cHex"
     auto sep1 = tripleMsg.find('|');
@@ -737,6 +750,7 @@ void Party::receiveBeaverTriple()
     myTripleMac.a = deserializeShare(macAHex);
     myTripleMac.b = deserializeShare(macBHex);
     myTripleMac.c = deserializeShare(macCHex);
+    m_global_mac_key = deserializeShare(globalMacKeyHex);
     #endif
 
     #ifdef ENABLE_COUT
@@ -805,6 +819,11 @@ void Party::doMultiplicationDemo(ShareType &z_i)
         BN_free(d_j);
         BN_free(e_j);
     }
+    #if defined(ENABLE_MALICIOUS_SECURITY)
+    // Copy the D to m_epsilon and E to m_delta
+    BN_copy(m_epsilon, D);
+    BN_copy(m_rho, E);
+    #endif
     // this->syncAfterDistribute();
     // Compute z_i = c_i + a_i * E + b_i * D + D * E
     // z_i = AdditiveSecretSharing::newBigInt();
@@ -837,7 +856,6 @@ void Party::doMultiplicationDemo(ShareType &z_i)
     BN_free(aE);
     BN_free(bD);
 }
-// ...existing code...
 
 void Party::runEventLoop()
 {
@@ -1008,16 +1026,23 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
             std::cout << "  macA: " << BN_bn2dec(myTripleMac.a) << "\n";
             std::cout << "  macB: " << BN_bn2dec(myTripleMac.b) << "\n";
             std::cout << "  macC: " << BN_bn2dec(myTripleMac.c) << "\n";
+            std::cout << "  globalMacKey: " << BN_bn2dec(m_global_mac_key) << "\n";
             #endif
         #endif // ENABLE_UNIT_TESTS
-        // this->doMultiplicationDemo(m_z_i);
-        // #if defined(ENABLE_UNIT_TESTS)
-        // std::cout << "[Party " << m_partyId << "] m_z_i: " << BN_bn2dec(m_z_i) << "\n";
-        // #endif // ENABLE_UNIT_TESTS
+        this->doMultiplicationDemo(m_z_i);
+        #if defined(ENABLE_UNIT_TESTS)
+        std::cout << "[Party " << m_partyId << "] m_z_i: " << BN_bn2dec(m_z_i) << "\n";
+        #endif // ENABLE_UNIT_TESTS
+        #if defined(ENABLE_MALICIOUS_SECURITY)
+        this->generateZmac(m_z_i_mac);
+        #if defined(ENABLE_UNIT_TESTS)
+        std::cout << "[Party " << m_partyId << "] m_z_i_mac: " << BN_bn2dec(m_z_i_mac) << "\n";
+        #endif // ENABLE_UNIT_TESTS
+        #endif
         // // send success to the dealer
         // std::cout << "m_dealRouterId: " << m_dealRouterId << "\n";
         // // m_comm->reply((void*)m_dealRouterId.c_str(), &CMD_SUCCESS, sizeof(CMD_T));
-        // m_comm->reply((void*)m_dealRouterId.c_str(), m_dealRouterId.size(), &CMD_SUCCESS, sizeof(CMD_T));
+        m_comm->reply((void*)m_dealRouterId.c_str(), m_dealRouterId.size(), &CMD_SUCCESS, sizeof(CMD_T));
     } else if (cmd == CMD_FETCH_MULT_SHARE) {
         std::cout << "[Party " << m_partyId << "] Received command to fetch multiplication share from Party " 
                   << senderId << "\n";
@@ -1025,6 +1050,11 @@ void Party::handleMessage(PARTY_ID_T senderId, const void *data, LENGTH_T length
         std::string zStr = serializeShare(m_z_i);
         m_comm->reply(zStr.c_str(), zStr.size());
         BN_free(m_z_i);
+        #if defined(ENABLE_MALICIOUS_SECURITY)
+        std::string zMacStr = serializeShare(m_z_i_mac);
+        m_comm->reply(zMacStr.c_str(), zMacStr.size());
+        BN_free(m_z_i_mac);
+        #endif
     } else {
         std::cerr << "[Party " << m_partyId << "] Unknown command received from Party " 
                   << senderId << ": " << cmd << "\n";
@@ -1077,4 +1107,22 @@ void Party::generateMyShares(const std::vector<ShareType> &secretValues,
     #endif // ENABLE_UNIT_TESTS
 }
 
-// ...existing code...
+#if defined(ENABLE_MALICIOUS_SECURITY)
+void Party::generateZmac(ShareType z_i_mac) {
+    // check if z_i_mac is null
+    if (!z_i_mac) throw std::runtime_error("z_i_mac is null.");
+    BN_zero(z_i_mac);
+    BN_mod_add(z_i_mac, z_i_mac, myTripleMac.c, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // m_epsilon * myTripleMac.b
+    ShareType temp = AdditiveSecretSharing::newBigInt();
+    BN_mod_mul(temp, m_epsilon, myTripleMac.b, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    BN_mod_add(z_i_mac, z_i_mac, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // m_rho * myTripleMac.a
+    BN_mod_mul(temp, m_rho, myTripleMac.a, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    BN_mod_add(z_i_mac, z_i_mac, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    // m_epsilon * m_rho * m_global_mac_key
+    BN_mod_mul(temp, m_epsilon, m_rho, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    BN_mod_mul(temp, temp, m_global_mac_key, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+    BN_mod_add(z_i_mac, z_i_mac, temp, AdditiveSecretSharing::getPrime(), AdditiveSecretSharing::getCtx());
+}
+#endif

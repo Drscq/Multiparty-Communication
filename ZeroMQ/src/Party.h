@@ -32,6 +32,10 @@ public:
             }
             m_secret_sum = AdditiveSecretSharing::newBigInt();
             m_secret_sum_mac = AdditiveSecretSharing::newBigInt();
+            m_epsilon = AdditiveSecretSharing::newBigInt();
+            m_rho = AdditiveSecretSharing::newBigInt();
+            m_z_i_mac = AdditiveSecretSharing::newBigInt();
+            m_global_key_share = AdditiveSecretSharing::newBigInt();
             #endif // ENABLE_MALICIOUS_SECURITY
             m_secrets.resize(NUM_SECRETS);
           }
@@ -176,6 +180,11 @@ private:
 
     // Helper to receive a single BN from one party
     BIGNUM* receiveBN(PARTY_ID_T& sender);
+    
+    #if defined(ENABLE_MALICIOUS_SECURITY)
+    // Helper to generate the MAC key for the multiplication
+    void generateZmac(ShareType z_i_mac);
+    #endif // ENABLE_MALICIOUS_SECURITY
 
     bool m_hasSecret;              // Indicates if this party holds a secret
     std::string m_operation;       // "add" or "mul"
@@ -186,7 +195,13 @@ private:
     std::vector<ShareType> m_receivedMacShares;
     #endif // ENABLE_MALICIOUS_SECURITY
     std::vector<ShareType> m_receivedMultiplicationShares;
+    #if defined(ENABLE_MALICIOUS_SECURITY)
+    std::vector<ShareType> m_receivedMultiplicationMacShares;
+    #endif // ENABLE_MALICIOUS_SECURITY
     ShareType m_z_i;
+    #if defined(ENABLE_MALICIOUS_SECURITY)
+    ShareType m_z_i_mac;
+    #endif // ENABLE_MALICIOUS_SECURITY
     // Party5_to_1
     std::string m_dealRouterId;
     ShareType m_global_mac_key;
@@ -196,6 +211,9 @@ private:
     std::vector<std::vector<ShareType>> m_addition_partial_sum;
     ShareType m_secret_sum;
     ShareType m_secret_sum_mac;
+    // Multiplication operation
+    ShareType m_epsilon, m_rho;
+    ShareType m_global_key_share;
     #endif // ENABLE_MALICIOUS_SECURITY
     std::vector<ShareType> m_secrets;
 };
