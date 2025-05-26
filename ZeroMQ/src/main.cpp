@@ -11,18 +11,16 @@
 
 int main(int argc, char* argv[])
 {
-    if (argc < 7) {
-        std::cerr << "Usage: " << argv[0] << " <mode> <party_id> <num_parties> <input_value> <has_secret> <operation>\n";
-        std::cerr << "Modes: reqrep, dealerrouter" << std::endl;
+    if (argc < 6) {
+        std::cerr << "Usage: " << argv[0] << " <party_id> <num_parties> <input_value> <has_secret> <operation>\n";
         return 1;
     }
 
-    std::string modeStr = argv[1];
-    PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[2]));
-    int totalParties = std::atoi(argv[3]);
-    int inputValue = std::atoi(argv[4]);
-    int hasSecretFlag = std::atoi(argv[5]);
-    std::string operation = argv[6];
+    PARTY_ID_T myPartyId = static_cast<PARTY_ID_T>(std::atoi(argv[1]));
+    int totalParties = std::atoi(argv[2]);
+    int inputValue = std::atoi(argv[3]);
+    int hasSecretFlag = std::atoi(argv[4]);
+    std::string operation = argv[5];
     if (hasSecretFlag == 1) {
         // #if defined(ENABLE_COUT)
         std::cout << "[Party " << myPartyId << "] Starting with input value: " << inputValue << "\n";
@@ -36,24 +34,9 @@ int main(int argc, char* argv[])
         partyInfo[static_cast<PARTY_ID_T>(i)] = {"127.0.0.1", basePort + i - 1};
     }
 
-    // Determine the mode
-    NetIOMPFactory::Mode mode;
-    if (modeStr == "reqrep") {
-        mode = NetIOMPFactory::Mode::REQ_REP;
-    } else if (modeStr == "dealerrouter") {
-        mode = NetIOMPFactory::Mode::DEALER_ROUTER;
-    } else {
-        std::cerr << "Unknown mode: " << modeStr << std::endl;
-        return 1;
-    }
-
     try {
-        auto netIOMP = NetIOMPFactory::createNetIOMP(mode, myPartyId, partyInfo, totalParties);
-        if (hasSecretFlag) {
-            netIOMP->initDealers();
-        } else {
-            netIOMP->init();
-        }
+        auto netIOMP = NetIOMPFactory::createNetIOMP(myPartyId, partyInfo, totalParties);
+        netIOMP->init(); // Always call init()
 
         // Ensure all parties are initialized
         std::this_thread::sleep_for(std::chrono::seconds(2));
