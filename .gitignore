@@ -5,3 +5,5 @@ ZeroMQ/netiomp_test
 *.o
 ZeroMQ/src/main.o
 ZeroMQ/tests/build/
+ZeroMQ/tutorial/router_dealer
+ZeroMQ/tutorial/build/
