@@ -1,6 +1,14 @@
 #!/bin/bash
 
-echo "=== Testing Router-Dealer Communication ==="
+# Default number of dealers
+NUM_DEALERS=3
+
+# Parse command line arguments
+if [ $# -eq 1 ]; then
+    NUM_DEALERS=$1
+fi
+
+echo "=== Testing Router-Dealer Communication with $NUM_DEALERS dealers ==="
 
 # Kill any existing processes
 pkill -f router_dealer_basic 2>/dev/null || true
@@ -14,18 +22,18 @@ ROUTER_PID=$!
 sleep 2
 
 # Test with multiple dealers
-echo "Testing multiple dealers..."
-echo "Launching 5 dealers concurrently..."
+echo "Testing with $NUM_DEALERS dealers..."
+echo "Launching dealers concurrently..."
 
 # Array to store dealer PIDs
 DEALER_PIDS=()
 
 # Launch multiple dealers in parallel
-for i in {1..5}; do
+for i in $(seq 1 $NUM_DEALERS); do
     echo "Starting dealer $i..."
     ./build/router_dealer_basic dealer &
     DEALER_PIDS+=($!)
-    sleep 0.5  # Small delay between dealer starts
+    sleep 0.2  # Small delay between dealer starts
 done
 
 # Wait for all dealers to complete
@@ -42,4 +50,4 @@ kill $ROUTER_PID 2>/dev/null || true
 wait $ROUTER_PID 2>/dev/null || true
 
 echo "Test completed."
-echo "Successfully tested Router-Dealer pattern with multiple concurrent dealers!"
+echo "Successfully tested Router-Dealer pattern with $NUM_DEALERS concurrent dealers!"
