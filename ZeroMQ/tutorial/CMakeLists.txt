@@ -22,29 +22,46 @@ find_path(CPPZMQ_INCLUDE_DIR
 # Find Threads package
 find_package(Threads REQUIRED)
 
-# Create executable
+# Create executables
 add_executable(router_dealer_official router_dealer_official.cpp)
+add_executable(router_dealer_basic router_dealer_basic.cpp)
 
-# Include directories
+# Include directories for both executables
 target_include_directories(router_dealer_official PRIVATE 
     ${ZMQ_INCLUDE_DIRS}
     ${CPPZMQ_INCLUDE_DIR}
 )
 
-# Link libraries
+target_include_directories(router_dealer_basic PRIVATE 
+    ${ZMQ_INCLUDE_DIRS}
+    ${CPPZMQ_INCLUDE_DIR}
+)
+
+# Link libraries for both executables
 target_link_libraries(router_dealer_official 
     ${ZMQ_LIBRARIES}
     Threads::Threads
 )
 
-# Compiler flags
+target_link_libraries(router_dealer_basic 
+    ${ZMQ_LIBRARIES}
+    Threads::Threads
+)
+
+# Compiler flags for both executables
 target_compile_options(router_dealer_official PRIVATE 
     ${ZMQ_CFLAGS_OTHER}
     -Wall -Wextra -O2
 )
 
-# Link directories
+target_compile_options(router_dealer_basic PRIVATE 
+    ${ZMQ_CFLAGS_OTHER}
+    -Wall -Wextra -O2
+)
+
+# Link directories for both executables
 target_link_directories(router_dealer_official PRIVATE ${ZMQ_LIBRARY_DIRS})
+target_link_directories(router_dealer_basic PRIVATE ${ZMQ_LIBRARY_DIRS})
 
 # Print some information
 message(STATUS "ZMQ_INCLUDE_DIRS: ${ZMQ_INCLUDE_DIRS}")
